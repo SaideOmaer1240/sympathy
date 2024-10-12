@@ -1,6 +1,6 @@
- # Sympathy
+# Sympathy
 
-Sympathy é uma aplicação web construída utilizando o framework **FastHTML** e **SQLAlchemy** para gerenciar consultorias online, com funcionalidades para cadastro de consultores e clientes, gerenciamento de agendas, pedidos de consultoria e avaliações. A aplicação usa JWT para autenticação e possui uma interface amigável com suporte a formulários dinâmicos e interativos.
+**Sympathy** é uma aplicação web construída utilizando o framework **FastHTML** e **SQLAlchemy** para gerenciar consultorias online, com funcionalidades para cadastro de consultores e clientes, gerenciamento de agendas, pedidos de consultoria e avaliações. A aplicação usa JWT para autenticação e possui uma interface amigável com suporte a formulários dinâmicos e interativos.
 
 ## Funcionalidades
 
