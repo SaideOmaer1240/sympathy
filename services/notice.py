@@ -3,8 +3,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 def enviar_email_notificacao(destinatario, assunto, mensagem):
-    remetente = "cfilomena@estudantes.unisced.edu.mz"
-    senha = "842912694"  # Recomendado usar variáveis de ambiente para segurança
+    remetente = "saideomarsaid@gmail.com"
+    senha = "123456"  # Recomendado usar variáveis de ambiente para segurança
 
     msg = MIMEMultipart()
     msg['From'] = remetente
