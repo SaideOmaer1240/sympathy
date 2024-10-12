@@ -71,4 +71,3 @@ Contribuições são bem-vindas! Sinta-se à vontade para abrir um *pull request
 
 ---
 
-Esse README cobre os principais aspectos do projeto e pode ser ajustado conforme as necessidades do seu desenvolvimento.
