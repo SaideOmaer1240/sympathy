@@ -1,0 +1,56 @@
+# Arquivos compilados em Python
+*.py[cod]
+__pycache__/
+*.so
+
+# Diretórios de ambientes virtuais
+env/
+venv/
+ENV/
+.venv/
+.ENV/
+
+# Arquivos de configuração específicos do sistema operacional
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+ 
+
+# Arquivos de cache
+.cache/
+*.pyc
+
+# Configurações do editor
+.vscode/
+.idea/
+
+# Bancos de dados SQLite locais
+*.sqlite3
+
+# Arquivos gerados por pacotes
+*.egg
+*.egg-info/
+dist/
+build/
+*.lock
+
+# Pandoc
+*.docx
+
+# Arquivos de pytest
+.pytest_cache/
+
+# Arquivos de cobertura de teste
+htmlcov/
+coverage.xml
+*.cover
+*.cov
+
+# Arquivos de jupyter notebook
+.ipynb_checkpoints/
+
+# Arquivos temporários criados pelo sistema operacional
+*.swp
+*.swo

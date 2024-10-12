@@ -1,0 +1,1236 @@
+/home/saide/sympathy/.env
+     DB_URL=postgresql://postgres:123456@localhost:5432/sympathy_db
+     SECRET_KEY = sua_chave_secreta_super_segura
+
+/home/saide/sympathy/config.py
+     from dotenv import load_dotenv
+    import os
+
+    load_dotenv()   
+
+    DATABASE_URL = os.getenv("DB_URL")
+    SECRET_KEY = os.getenv('SECRET_KEY')
+
+/home/saide/sympathy/alembic.ini
+    # A generic, single database configuration.
+
+    [alembic]
+    # path to migration scripts
+    # Use forward slashes (/) also on windows to provide an os agnostic path
+    script_location = alembic
+
+    # template used to generate migration file names; The default value is %%(rev)s_%%(slug)s
+    # Uncomment the line below if you want the files to be prepended with date and time
+    # see https://alembic.sqlalchemy.org/en/latest/tutorial.html#editing-the-ini-file
+    # for all available tokens
+    # file_template = %%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s
+
+    # sys.path path, will be prepended to sys.path if present.
+    # defaults to the current working directory.
+    prepend_sys_path = .
+
+    # timezone to use when rendering the date within the migration file
+    # as well as the filename.
+    # If specified, requires the python>=3.9 or backports.zoneinfo library.
+    # Any required deps can installed by adding `alembic[tz]` to the pip requirements
+    # string value is passed to ZoneInfo()
+    # leave blank for localtime
+    # timezone =
+
+    # max length of characters to apply to the "slug" field
+    # truncate_slug_length = 40
+
+    # set to 'true' to run the environment during
+    # the 'revision' command, regardless of autogenerate
+    # revision_environment = false
+
+    # set to 'true' to allow .pyc and .pyo files without
+    # a source .py file to be detected as revisions in the
+    # versions/ directory
+    # sourceless = false
+
+    # version location specification; This defaults
+    # to alembic/versions.  When using multiple version
+    # directories, initial revisions must be specified with --version-path.
+    # The path separator used here should be the separator specified by "version_path_separator" below.
+    # version_locations = %(here)s/bar:%(here)s/bat:alembic/versions
+
+    # version path separator; As mentioned above, this is the character used to split
+    # version_locations. The default within new alembic.ini files is "os", which uses os.pathsep.
+    # If this key is omitted entirely, it falls back to the legacy behavior of splitting on spaces and/or commas.
+    # Valid values for version_path_separator are:
+    #
+    # version_path_separator = :
+    # version_path_separator = ;
+    # version_path_separator = space
+    # version_path_separator = newline
+    version_path_separator = os  # Use os.pathsep. Default configuration used for new projects.
+
+    # set to 'true' to search source files recursively
+    # in each "version_locations" directory
+    # new in Alembic version 1.10
+    # recursive_version_locations = false
+
+    # the output encoding used when revision files
+    # are written from script.py.mako
+    # output_encoding = utf-8
+    
+    sqlalchemy.url = postgresql://postgres:123456@localhost:5432/sympathy_db
+
+
+
+    [post_write_hooks]
+    # post_write_hooks defines scripts or Python functions that are run
+    # on newly generated revision scripts.  See the documentation for further
+    # detail and examples
+
+    # format using "black" - use the console_scripts runner, against the "black" entrypoint
+    # hooks = black
+    # black.type = console_scripts
+    # black.entrypoint = black
+    # black.options = -l 79 REVISION_SCRIPT_FILENAME
+
+    # lint with attempts to fix using "ruff" - use the exec runner, execute a binary
+    # hooks = ruff
+    # ruff.type = exec
+    # ruff.executable = %(here)s/.venv/bin/ruff
+    # ruff.options = --fix REVISION_SCRIPT_FILENAME
+
+    # Logging configuration
+    [loggers]
+    keys = root,sqlalchemy,alembic
+
+    [handlers]
+    keys = console
+
+    [formatters]
+    keys = generic
+
+    [logger_root]
+    level = WARN
+    handlers = console
+    qualname =
+
+    [logger_sqlalchemy]
+    level = WARN
+    handlers =
+    qualname = sqlalchemy.engine
+
+    [logger_alembic]
+    level = INFO
+    handlers =
+    qualname = alembic
+
+    [handler_console]
+    class = StreamHandler
+    args = (sys.stderr,)
+    level = NOTSET
+    formatter = generic
+
+    [formatter_generic]
+    format = %(levelname)-5.5s [%(name)s] %(message)s
+    datefmt = %H:%M:%S
+
+/home/saide/sympathy/alembic/env.py
+    from logging.config import fileConfig
+    from sqlalchemy import engine_from_config
+    from sqlalchemy import pool
+    from alembic import context
+
+    # Importar o MetaData dos modelos SQLAlchemy
+    from db.models import Bases
+
+    # Configuração do Alembic
+    config = context.config
+
+    # Configurar o logging
+    if config.config_file_name is not None:
+        fileConfig(config.config_file_name)
+
+    # Definir o MetaData para autogeração
+    target_metadata = Bases.metadata
+
+    def run_migrations_offline() -> None:
+        url = config.get_main_option("sqlalchemy.url")
+        context.configure(
+            url=url,
+            target_metadata=target_metadata,
+            literal_binds=True,
+            dialect_opts={"paramstyle": "named"},
+        )
+
+        with context.begin_transaction():
+            context.run_migrations()
+
+    def run_migrations_online() -> None:
+        connectable = engine_from_config(
+            config.get_section(config.config_ini_section),
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
+        )
+
+        with connectable.connect() as connection:
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata
+            )
+
+            with context.begin_transaction():
+                context.run_migrations()
+
+    if context.is_offline_mode():
+        run_migrations_offline()
+    else:
+        run_migrations_online()
+
+/home/saide/sympathy/db/models.py
+    from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+    from sqlalchemy import create_engine, Column, Integer, String, Date, Time, ForeignKey, DateTime
+    from config import DATABASE_URL
+    from datetime import datetime, timezone
+
+    engine = create_engine(DATABASE_URL)
+    Session = sessionmaker(bind=engine)
+    Bases = declarative_base()
+
+    # Definindo os modelos
+    class Consultor(Bases):
+        __tablename__ = 'Consultor'
+        
+        id = Column(Integer, primary_key=True, index=True)
+        nome = Column(String, nullable=False)
+        email = Column(String, unique=True, nullable=False)
+        atuacao = Column(String, nullable=False)
+        senha = Column(String, nullable=False)
+        avaliacoes = relationship("Avaliacao", back_populates="consultor")
+        pedidos = relationship("Pedido", back_populates="consultor")
+
+        def __repr__(self):
+            return f"<Consultor(nome={self.nome}, email={self.email})>"
+
+    class Cliente(Bases):
+        __tablename__ = 'Cliente'
+        
+        id = Column(Integer, primary_key=True, index=True)
+        nome = Column(String, nullable=False)
+        email = Column(String, unique=True, nullable=False)
+        senha = Column(String, nullable=False)
+        pedidos = relationship("Pedido", back_populates="cliente")
+
+        def __repr__(self):
+            return f"<Cliente(nome={self.nome}, email={self.email})>"
+
+    class Pedido(Bases):
+        __tablename__ = 'Pedido'
+        
+        id = Column(Integer, primary_key=True, index=True)
+        consultor_id = Column(Integer, ForeignKey('Consultor.id'), nullable=False)
+        cliente_id = Column(Integer, ForeignKey('Cliente.id'), nullable=False)
+        status = Column(String, nullable=False)  # "pendente", "aceito", "recusado"
+        created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))  # Data de criação
+
+        consultor = relationship("Consultor", back_populates="pedidos")
+        cliente = relationship("Cliente", back_populates="pedidos")
+        agenda = relationship("Agenda", back_populates="pedido", uselist=False)
+
+        def __repr__(self):
+            return f"<Pedido(consultor_id={self.consultor_id}, cliente_id={self.cliente_id}, status={self.status})>"
+
+    class Agenda(Bases):
+        __tablename__ = 'Agenda'
+        
+        id = Column(Integer, primary_key=True, index=True)
+        pedido_id = Column(Integer, ForeignKey('Pedido.id'), nullable=True)
+        assunto = Column(String, nullable=False)  # Nome do assunto da consultoria
+        data = Column(Date, nullable=False)
+        horario = Column(Time, nullable=False)
+        created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))  # Data de criação
+        updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))  # Data de atualização
+
+        pedido = relationship("Pedido", back_populates="agenda")
+
+        def __repr__(self):
+            return f"<Agenda(assunto={self.assunto}, data={self.data}, horario={self.horario})>"
+
+    class Avaliacao(Bases):
+        __tablename__ = 'Avaliacao'
+        
+        id = Column(Integer, primary_key=True, index=True)
+        consultor_id = Column(Integer, ForeignKey('Consultor.id'), nullable=False)
+        cliente_id = Column(Integer, ForeignKey('Cliente.id'), nullable=False)
+        nota = Column(Integer, nullable=False)  # Nota de 1 a 5
+        comentario = Column(String, nullable=True)
+        created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))  # Data da avaliação
+
+        consultor = relationship("Consultor", back_populates="avaliacoes")
+        cliente = relationship("Cliente")  # Relacionamento apenas para referência
+
+        def __repr__(self):
+            return f"<Avaliacao(consultor_id={self.consultor_id}, nota={self.nota})>"
+
+    def init_db():
+        Bases.metadata.create_all(engine)
+
+/home/saide/sympathy/app/views.py
+    from fasthtml.common import Titled, Tr, Td, P, Button, Form, Table, Th, Thead, Tbody, Fieldset, Input, Label 
+    from sqlalchemy.exc import IntegrityError  
+    from starlette.responses import JSONResponse  
+    from sqlalchemy.exc import IntegrityError
+    from db.models import Agenda, Cliente, Consultor,Pedido, Session
+    from auth.utils import gerar_token_jwt, hash_senha, verificar_senha 
+    from services.notice import enviar_email_notificacao
+    from datetime import datetime
+    from sqlalchemy import func  
+    
+
+
+    async def cadastrar_consultor(req):
+        form_data = await req.form()
+        
+        nome = form_data.get("nome")
+        email = form_data.get("email")
+        atuacao = form_data.get("atuacao")
+        senha = form_data.get("senha")
+
+        if not nome or not email or not atuacao or not senha:
+            return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
+
+        senha_hashed = hash_senha(senha)
+
+        session = Session()
+        consultor = Consultor(nome=nome, email=email, atuacao=atuacao, senha=senha_hashed)
+        
+        try:
+            session.add(consultor)
+            session.commit()
+            return JSONResponse(content={"message": "Consultor cadastrado com sucesso!"}, status_code=201)
+        except IntegrityError:
+            session.rollback()
+            return JSONResponse(content={"message": "Email já cadastrado."}, status_code=400)
+        finally:
+            session.close()
+
+
+    async def cadastrar_cliente(req):
+        form_data = await req.form()
+        
+        nome = form_data.get("nome")
+        email = form_data.get("email")
+        senha = form_data.get("senha")
+
+        if not nome or not email or not senha:
+            return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
+
+        senha_hashed = hash_senha(senha)
+
+        session = Session()
+        cliente = Cliente(nome=nome, email=email, senha=senha_hashed)
+        
+        try:
+            session.add(cliente)
+            session.commit()
+            return JSONResponse(content={"message": "Cliente cadastrado com sucesso!"}, status_code=201)
+        except IntegrityError:
+            session.rollback()
+            return JSONResponse(content={"message": "Email já cadastrado."}, status_code=400)
+        finally:
+            session.close()
+
+
+    async def login(req):
+        form_data = await req.form()
+        email = form_data.get("email")
+        senha = form_data.get("senha")
+
+        if not email or not senha:
+            return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
+
+        session = Session()
+
+        # Verifica se o usuário é consultor
+        consultor = session.query(Consultor).filter(Consultor.email == email).first()
+        if consultor and verificar_senha(senha, consultor.senha):
+            token = gerar_token_jwt(email, "consultor")
+            response = JSONResponse(content={"message": "Login realizado com sucesso!", "token": token}, status_code=200)
+            response.set_cookie(key="access_token", value=token, httponly=True)
+            session.close()
+            return response
+
+        # Verifica se o usuário é cliente
+        cliente = session.query(Cliente).filter(Cliente.email == email).first()
+        if cliente and verificar_senha(senha, cliente.senha):
+            token = gerar_token_jwt(email, "cliente")
+            response = JSONResponse(content={"message": f"Bem-vindo, Cliente {cliente.nome}!", "token": token}, status_code=200)
+            response.set_cookie(key="access_token", value=token, httponly=True)
+            session.close()
+            return response
+
+        session.close()
+        return JSONResponse(content={"message": "Credenciais inválidas."}, status_code=401)
+
+
+    async def criar_agenda(req):
+        form_data = await req.form()
+        assunto = form_data.get("assunto")
+        data = form_data.get("data")
+        horario = form_data.get("horario")
+
+        if not assunto or not data or not horario:
+            return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
+
+        session = Session()
+        consultor_email = req.state.user["sub"]  # Extrair email do consultor do token JWT
+
+        # Buscar o consultor
+        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+        
+        if not consultor:
+            session.close()
+            return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+        agenda = Agenda(
+            pedido_id=None,  # Pode ser associado futuramente
+            assunto=assunto,
+            data=data,
+            horario=horario
+        )
+        session.add(agenda)
+        
+        try:
+            session.commit()
+
+            # Enviar notificação para o consultor
+            mensagem = f"Olá {consultor.nome},\n\nUma nova agenda foi criada:\nAssunto: {assunto}\nData: {data}\nHorário: {horario}\n"
+            enviar_email_notificacao(consultor.email, "Nova Agenda Criada", mensagem)
+
+            return JSONResponse(content={"message": "Agenda criada com sucesso!"}, status_code=201)
+        except Exception as e:
+            session.rollback()
+            return JSONResponse(content={"message": "Erro ao criar agenda.", "error": str(e)}, status_code=500)
+        finally:
+            session.close()
+
+    async def minhas_agendas(req):
+        session = Session()
+        consultor_email = req.state.user["sub"]  # Email do consultor extraído do token
+
+        # Buscar o consultor logado
+        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+        if not consultor:
+            session.close()
+            return Titled("Erro", 
+                    P("Consultor não encontrado.")
+                ) 
+
+        # Buscar agendas do consultor
+        agendas = session.query(Agenda).filter(Agenda.pedido.has(consultor_id=consultor.id)).all()
+
+        if not agendas:
+            session.close()
+            return  Titled("Minhas Agendas", 
+                    P("Nenhuma agenda encontrada.")
+                )
+            
+        # Gerar tabela de agendas, incluindo o novo campo "assunto"
+        agenda_rows = [
+            Tr(
+                Td(a.assunto),  # Mostrando o assunto da agenda
+                Td(str(a.data)),
+                Td(str(a.horario)),
+                Td(Button("Editar", onclick=f"window.location.href='/form_editar_agenda/{a.id}'")),
+                Td(Form(method="post", action=f"/eliminar_agenda/{a.id}")(
+                    Button("Eliminar", type="submit", style="background-color: red; color: white;")
+                ))
+            ) for a in agendas
+        ]
+
+        session.close()
+
+        return Titled("Minhas Agendas", 
+                Table(
+                    Thead(
+                        Tr(
+                            Th("Assunto"),
+                            Th("Data"),
+                            Th("Horário"),
+                            Th("Editar"),
+                            Th("Eliminar")
+                        )
+                    ),
+                    Tbody(*agenda_rows)
+                )
+            )
+
+    async def buscar_agendas_por_assunto(req):
+        form_data = await req.form()
+        assunto = form_data.get("assunto")
+        
+        if not assunto:
+            return JSONResponse(content={"message": "Assunto é obrigatório."}, status_code=400)
+
+        session = Session()
+        consultor_email = req.state.user["sub"]  # Pega o email do consultor através do token JWT
+        
+        # Buscar consultor logado
+        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+        if not consultor:
+            session.close()
+            return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+        # Filtrar agendas do consultor pelo assunto
+        agendas = session.query(Agenda).filter(Agenda.pedido.has(consultor_id=consultor.id), Agenda.assunto.ilike(f'%{assunto}%')).all()
+
+        if not agendas:
+            session.close()
+            return JSONResponse(content={"message": "Nenhuma agenda encontrada para o assunto informado."}, status_code=404)
+
+        # Retornar os detalhes das agendas encontradas
+        agenda_list = [
+            {
+                "id": agenda.id,
+                "assunto": agenda.assunto,
+                "data": str(agenda.data),
+                "horario": str(agenda.horario)
+            } for agenda in agendas
+        ]
+        
+        session.close()
+        return JSONResponse(content={"agendas": agenda_list}, status_code=200)
+    
+
+    async def duplicar_agenda(req, agenda_id: int):
+        session = Session()
+        consultor_email = req.state.user["sub"]  # Obtém o email do consultor a partir do token JWT
+
+        try:
+            # Buscar o consultor logado
+            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+            if not consultor:
+                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+            # Buscar a agenda que o consultor deseja duplicar
+            agenda_original = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
+            if not agenda_original:
+                return JSONResponse(content={"message": "Agenda não encontrada ou não pertence ao consultor."}, status_code=404)
+
+            # Criar uma nova instância da Agenda duplicando os detalhes da original
+            nova_agenda = Agenda(
+                pedido_id=agenda_original.pedido_id,  # Mantém o pedido original ou pode ser None
+                assunto=agenda_original.assunto,
+                data=agenda_original.data,
+                horario=agenda_original.horario
+            )
+
+            session.add(nova_agenda)
+            session.commit()
+
+            return JSONResponse(content={"message": "Agenda duplicada com sucesso!", "nova_agenda_id": nova_agenda.id}, status_code=201)
+
+        except Exception as e:
+            session.rollback()
+            return JSONResponse(content={"message": "Erro ao duplicar a agenda.", "error": str(e)}, status_code=500)
+
+        finally:
+            session.close()
+
+    
+    async def listar_agendas_concluidas(req):
+        session = Session()
+        consultor_email = req.state.user["sub"]  # Extrai o email do consultor do token JWT
+
+        try:
+            # Buscar o consultor logado
+            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+            if not consultor:
+                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+            # Buscar todas as agendas do consultor que já passaram da data atual
+            agora = datetime.now().date()
+            agendas_concluidas = session.query(Agenda).filter(
+                Agenda.pedido.has(consultor_id=consultor.id),
+                Agenda.data < agora
+            ).all()
+
+            if not agendas_concluidas:
+                return JSONResponse(content={"message": "Nenhuma agenda concluída encontrada."}, status_code=404)
+
+            # Listar as agendas concluídas
+            agenda_list = [
+                {
+                    "id": agenda.id,
+                    "assunto": agenda.assunto,
+                    "data": str(agenda.data),
+                    "horario": str(agenda.horario)
+                } for agenda in agendas_concluidas
+            ]
+
+            return JSONResponse(content={"agendas_concluidas": agenda_list}, status_code=200)
+
+        except Exception as e:
+            return JSONResponse(content={"message": "Erro ao buscar agendas concluídas.", "error": str(e)}, status_code=500)
+
+        finally:
+            session.close()
+
+
+    async def eliminar_agenda(req, agenda_id: int):
+        session = Session()
+        consultor_email = req.state.user["sub"]  # Email do consultor extraído do token JWT
+
+        try:
+            # Buscar o consultor pelo email contido no payload do token JWT
+            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+            
+            if not consultor:
+                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+            # Buscar a agenda pelo ID e verificar se pertence ao consultor logado
+            agenda = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.consultor_id == consultor.id).first()
+            
+            if not agenda:
+                return JSONResponse(content={"message": "Agenda não encontrada ou não pertence ao consultor."}, status_code=404)
+            
+            # Eliminar a agenda
+            session.delete(agenda)
+            session.commit()
+
+            return JSONResponse(content={"message": "Agenda eliminada com sucesso!"}, status_code=200)
+        
+        except Exception as e:
+            session.rollback()
+            return JSONResponse(content={"message": "Erro ao eliminar a agenda.", "error": str(e)}, status_code=500)
+        
+        finally:
+            session.close()
+
+
+    async def form_editar_agenda(req, agenda_id: int):
+        session = Session()
+        consultor_email = req.state.user["sub"]
+
+        # Buscar o consultor logado pelo email contido no token
+        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+
+        if not consultor:
+            session.close()
+            return Titled("Erro", P("Consultor não encontrado."))
+
+        # Buscar a agenda pelo ID e verificar se pertence ao consultor logado
+        agenda = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
+
+        if not agenda:
+            session.close()
+            return Titled("Erro", P("Agenda não encontrada."))
+
+        # Retornar o formulário com os dados atuais da agenda, incluindo o campo "assunto"
+        session.close()
+
+        return Titled("Editar Agenda",
+            Form(method="post", action=f"/atualizar_agenda/{agenda.id}")(
+                Fieldset(
+                    Label("Assunto: ", Input(name="assunto", type="text", value=str(agenda.assunto), required=True)),
+                    Label("Data: ", Input(name="data", type="date", value=str(agenda.data), required=True)),
+                    Label("Horário: ", Input(name="horario", type="time", value=str(agenda.horario), required=True))
+                ),
+                Button("Atualizar Agenda", type="submit")
+            )
+        )
+
+    async def atualizar_agenda(req, agenda_id: int):
+        form_data = await req.form()
+        novo_assunto = form_data.get("assunto")
+        nova_data = form_data.get("data")
+        novo_horario = form_data.get("horario")
+
+        if not novo_assunto or not nova_data or not novo_horario:
+            return JSONResponse(content={"message": "Assunto, data e horário são obrigatórios."}, status_code=400)
+
+        session = Session()
+        consultor_email = req.state.user["sub"]
+
+        try:
+            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+            
+            if not consultor:
+                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+            agenda = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
+            
+            if not agenda:
+                return JSONResponse(content={"message": "Agenda não encontrada ou não pertence ao consultor."}, status_code=404)
+
+            agenda.assunto = novo_assunto
+            agenda.data = nova_data
+            agenda.horario = novo_horario
+            session.commit()
+
+            # Enviar notificação de atualização
+            mensagem = f"Olá {consultor.nome},\n\nSua agenda foi atualizada:\nNovo Assunto: {novo_assunto}\nNova Data: {nova_data}\nNovo Horário: {novo_horario}\n"
+            enviar_email_notificacao(consultor.email, "Agenda Atualizada", mensagem)
+
+            return JSONResponse(content={"message": "Agenda atualizada com sucesso!"}, status_code=200)
+        
+        except Exception as e:
+            session.rollback()
+            return JSONResponse(content={"message": "Erro ao atualizar a agenda.", "error": str(e)}, status_code=500)
+        
+        finally:
+            session.close()
+
+    async def template_editar_agenda(req, agenda_id: int):
+        session = Session()
+        consultor_email = req.state.user["sub"]
+
+        # Buscar o consultor logado pelo email contido no token
+        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+
+        if not consultor:
+            session.close()
+            return Titled("Erro", P("Consultor não encontrado."))
+
+        # Buscar a agenda pelo ID e verificar se pertence ao consultor logado
+        agenda = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
+
+        if not agenda:
+            session.close()
+            return Titled("Erro", P("Agenda não encontrada."))
+
+        # Fechar a sessão
+        session.close()
+
+        # Retornar o formulário com os dados atuais da agenda, incluindo o campo "assunto"
+        return Titled("Editar Agenda",
+            Form(method="post", action=f"/atualizar_agenda/{agenda.id}")(
+                Fieldset(
+                    Label("Assunto: ", Input(name="assunto", type="text", value=str(agenda.assunto), required=True)),
+                    Label("Data: ", Input(name="data", type="date", value=str(agenda.data), required=True)),
+                    Label("Horário: ", Input(name="horario", type="time", value=str(agenda.horario), required=True))
+                ),
+                Button("Atualizar Agenda", type="submit")
+            )
+        )
+
+
+    async def gerar_relatorio_agendas(req):
+        session = Session()
+        consultor_email = req.state.user["sub"]  # Obtém o email do consultor do token JWT
+
+        try:
+            # Buscar o consultor logado
+            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+            if not consultor:
+                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+            # Contar o número de agendas por assunto
+            relatorio_por_assunto = session.query(
+                Agenda.assunto,
+                func.count(Agenda.id).label("total")
+            ).filter(Agenda.pedido.has(consultor_id=consultor.id)).group_by(Agenda.assunto).all()
+
+            # Contar o número de agendas por data
+            relatorio_por_data = session.query(
+                Agenda.data,
+                func.count(Agenda.id).label("total")
+            ).filter(Agenda.pedido.has(consultor_id=consultor.id)).group_by(Agenda.data).all()
+
+            # Construir o relatório
+            relatorio = {
+                "por_assunto": [
+                    {"assunto": r.assunto, "total": r.total} for r in relatorio_por_assunto
+                ],
+                "por_data": [
+                    {"data": str(r.data), "total": r.total} for r in relatorio_por_data
+                ]
+            }
+
+            return JSONResponse(content={"relatorio": relatorio}, status_code=200)
+
+        except Exception as e:
+            return JSONResponse(content={"message": "Erro ao gerar relatório de agendas.", "error": str(e)}, status_code=500)
+
+        finally:
+            session.close()
+
+/home/saide/sympathy/app/viewsClients.py
+    from fasthtml.common import Titled, P, Button, Ul, Li, Div 
+    from db.models import Cliente, Consultor, Pedido, Avaliacao, Agenda, Session  
+    from auth.decorators.goodcookies import goodcookies
+    from sqlalchemy import or_, func
+    from starlette.responses import JSONResponse  
+
+    # Função para fazer pedido de consultoria
+    async def fazer_pedido_consulta(req, consultor_id: int):
+
+        # Debug: Verificar se o consultor_id foi recebido corretamente
+        print("consultor_id recebido do cookie:", consultor_id)
+
+        # Se o consultor_id não estiver presente, retornar um erro
+        if not consultor_id:
+            return Titled("Erro", P("Consultor ID não encontrado nos cookies."))
+
+        # Extraindo o cliente_email do JWT
+        cliente_email = req.state.user["sub"]  # Cliente logado extraído do JWT
+
+        session = Session()
+        cliente = session.query(Cliente).filter(Cliente.email == cliente_email).first()
+
+        if not cliente:
+            session.close()
+            return Titled("Erro", P("Cliente não encontrado."))
+
+        try:
+            # Criar o pedido de consultoria com o consultor_id e cliente_id
+            pedido = Pedido(consultor_id=consultor_id, cliente_id=cliente.id, status="pendente")
+            session.add(pedido)
+            session.commit()
+
+            session.close()
+            return Titled("Sucesso", P("Pedido de consultoria enviado com sucesso!"))
+        except Exception as e:
+            session.rollback()
+            session.close()
+            return Titled("Erro", P(f"Ocorreu um erro ao criar o pedido: {str(e)}"))
+
+    # Função para buscar consultores com filtros
+    async def buscar_consultores(req):
+        form_data = await req.form()
+        termo_pesquisa = form_data.get("termo")  # Termo para busca por nome ou área de atuação
+        avaliacao_minima = form_data.get("avaliacao_minima")  # Filtro de avaliação mínima
+        apenas_disponiveis = form_data.get("apenas_disponiveis")  # Filtro de disponibilidade
+
+        session = Session()
+
+        # Query base para buscar consultores
+        query = session.query(Consultor).filter(
+            or_(
+                Consultor.nome.ilike(f'%{termo_pesquisa}%'),
+                Consultor.atuacao.ilike(f'%{termo_pesquisa}%')
+            )
+        )
+
+        # Filtro por avaliação mínima
+        if avaliacao_minima:
+            query = query.join(Avaliacao).group_by(Consultor.id).having(func.avg(Avaliacao.nota) >= avaliacao_minima)
+
+        # Filtro de disponibilidade (consultores com agenda disponível)
+        if apenas_disponiveis:
+            query = query.outerjoin(Agenda).filter(Agenda.id == None)  # Consultores sem agenda vinculada
+
+        consultores = query.all()
+        session.close()
+
+        if not consultores:
+            return Titled("Nenhum consultor encontrado.")
+
+        # Gerar a lista de consultores em HTML
+        consultores_html = Ul(*[
+            Li(f"{consultor.nome} - {consultor.atuacao}",
+                hx_get=f"/detalhes_consultor/{consultor.id}",
+                hx_target="#detalhes-consultor",
+                hx_swap="outerHTML"
+            ) for consultor in consultores
+        ])
+
+        return Titled("Lista de Consultores", consultores_html)
+
+    # Função para exibir os detalhes do consultor
+    async def detalhes_consultor(req, consultor_id: int):
+        session = Session()
+
+        # Definir cookie com consultor_id para futuras interações
+        response = JSONResponse(content={"message": "Armazenamento realizado com sucesso!", "consultor ID": consultor_id})
+        response.set_cookie(key="consultor_id", value=str(consultor_id), httponly=True)  # Corrigido para garantir o valor correto
+
+        # Buscar consultor pelo ID
+        consultor = session.query(Consultor).filter(Consultor.id == consultor_id).first()
+        session.close()
+
+        if not consultor:
+            return Titled("Erro", P("Consultor não encontrado."), status_code=404)
+
+        # Retornar os detalhes do consultor em HTML
+        detalhes_html = Div(
+            P(f"Nome: {consultor.nome}"),
+            P(f"Área de Atuação: {consultor.atuacao}"),
+            Button("Solicitar Consultoria", hx_post=f"/fazer_pedido_consulta/{consultor.id}", hx_trigger="click" )
+        )
+
+        return Titled("Detalhes do Consultor", detalhes_html)
+
+/home/saide/sympathy/app/templates/forms.py
+    from fasthtml.common import Titled, Fieldset, Form, Label, Input, Button, Tr, Td, Table, Thead, Tbody, Tr, Th, Td, Div, P
+
+    def template_cliente():
+        return Titled("Cadastro de Cliente",
+            Form(method="post", action="/cadastrar_cliente")(
+                Fieldset(
+                    Label("Nome: ", Input(name="nome", type="text", required=True)),
+                    Label("Email: ", Input(name="email", type="email", required=True)),
+                    Label("Senha: ", Input(name="senha", type="password", required=True))
+                ),
+                Button("Cadastrar", type="submit")
+            )
+        )
+
+    def template_consultor():
+        return Titled("Cadastro de Consultor",
+            Form(method="post", action="/cadastrar_consultor")(
+                Fieldset(
+                    Label("Nome: ", Input(name="nome", type="text", required=True)),
+                    Label("Email: ", Input(name="email", type="email", required=True)),
+                    Label("Área de Atuação: ", Input(name="atuacao", type="text", required=True)),
+                    Label("Senha: ", Input(name="senha", type="password", required=True))
+                ),
+                Button("Cadastrar", type="submit")
+            )
+        )
+
+    def template_buscar_consultores():
+        return Titled("Buscar Consultores",
+            Form(method="post", action="/buscar_consultores", hx_post="/buscar_consultores", hx_target="#lista-consultores")(
+                Fieldset(
+                    Label("Nome ou Área de Atuação: ", Input(name="termo", type="text", required=True)),
+                    Label("Avaliação Mínima: ", Input(name="avaliacao_minima", type="number", step="0.1", min="1", max="5")),
+                    Label("Apenas Disponíveis: ", Input(name="apenas_disponiveis", type="checkbox"))
+                ),
+                Button("Buscar", type="submit")
+            ),
+            Div(id="lista-consultores", style="margin-top: 20px;")(),  # Onde a lista de consultores será renderizada
+            Div(id="detalhes-consultor", style="display:none; margin-top: 20px;")(
+                P("Nome: ", id="consultor-nome"),
+                P("Área de Atuação: ", id="consultor-atuacao"),
+                Button("Solicitar Consultoria", id="btn-solicitar", hx_post="/fazer_pedido_consulta", hx_trigger="click", hx_vals="{consultor_id: consultorId}")
+            )
+        )
+    def template_login():
+        return Titled("Login",
+            Form(method="post", action="/login")(
+                Fieldset(
+                    Label("Email: ", Input(name="email", type="email", required=True)),
+                    Label("Senha: ", Input(name="senha", type="password", required=True))
+                ),
+                Button("Login", type="submit")
+            )
+        )
+
+
+    def template_agenda():
+        return Titled("Criar Agenda",
+            Form(method="post", action="/criar_agenda")(
+                Fieldset(
+                    Label("Assunto: ", Input(name="assunto", type="text", required=True)),
+                    Label("Data: ", Input(name="data", type="date", required=True)),
+                    Label("Horário: ", Input(name="horario", type="time", required=True))
+                ),
+                Button("Criar Agenda", type="submit")
+            )
+        )
+    
+    def template_buscar_agenda():
+        return Titled("Buscar Agendas",
+            Form(method="post", action="/buscar_agenda_por_assunto")(
+                Fieldset(
+                    Label("Assunto: ", Input(name="assunto", type="text", required=True))
+                ),
+                Button("Buscar", type="submit")
+            )
+        )
+
+    
+
+    def gerar_linha_agenda(agenda):
+        return Tr(
+            Td(agenda.assunto),
+            Td(str(agenda.data)),
+            Td(str(agenda.horario)),
+            Td(Button("Editar", onclick=f"window.location.href='/form_editar_agenda/{agenda.id}'")),
+            Td(Form(method="post", action=f"/duplicar_agenda/{agenda.id}")(
+                Button("Duplicar", type="submit", style="background-color: blue; color: white;")
+            )),
+            Td(Form(method="post", action=f"/eliminar_agenda/{agenda.id}")(
+                Button("Eliminar", type="submit", style="background-color: red; color: white;")
+            ))
+        )
+
+
+
+
+    def template_agendas_concluidas(agendas):
+        if not agendas:
+            return Titled("Histórico de Agendas", "Nenhuma agenda concluída foi encontrada.")
+
+        agenda_rows = [
+            Tr(
+                Td(agenda["assunto"]),
+                Td(agenda["data"]),
+                Td(agenda["horario"])
+            ) for agenda in agendas
+        ]
+
+        return Titled("Histórico de Agendas Concluídas",
+            Table(
+                Thead(
+                    Tr(
+                        Th("Assunto"),
+                        Th("Data"),
+                        Th("Horário")
+                    )
+                ),
+                Tbody(*agenda_rows)
+            )
+        )
+
+    def template_relatorio_agendas(relatorio):
+        # Relatório por assunto
+        relatorio_assunto_rows = [
+            Tr(Td(item["assunto"]), Td(item["total"])) for item in relatorio["por_assunto"]
+        ]
+
+        # Relatório por data
+        relatorio_data_rows = [
+            Tr(Td(item["data"]), Td(item["total"])) for item in relatorio["por_data"]
+        ]
+
+        return Titled("Relatório de Agendas",
+            Titled("Por Assunto",
+                Table(
+                    Thead(Tr(Th("Assunto"), Th("Total"))),
+                    Tbody(*relatorio_assunto_rows)
+                )
+            ),
+            Titled("Por Data",
+                Table(
+                    Thead(Tr(Th("Data"), Th("Total"))),
+                    Tbody(*relatorio_data_rows)
+                )
+            )
+        )
+
+/home/saide/sympathy/auth/utils.py
+    from datetime import datetime, timedelta, timezone
+    import bcrypt
+    import jwt
+    from config import SECRET_KEY
+
+    def gerar_token_jwt(email, tipo_usuario):
+        payload = {
+            "sub": email,
+            "role": tipo_usuario,
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
+        }
+        return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+
+    def verificar_token_jwt(token):
+        try:
+            return jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+            return None
+
+    def hash_senha(senha):
+        salt = bcrypt.gensalt()
+        return bcrypt.hashpw(senha.encode('utf-8'), salt).decode('utf-8')
+
+    def verificar_senha(senha_fornecida, senha_armazenada):
+        return bcrypt.checkpw(senha_fornecida.encode('utf-8'), senha_armazenada.encode('utf-8'))
+
+/home/saide/sympathy/auth/decorators/authorization.py
+    from functools import wraps
+    from starlette.responses import JSONResponse
+    from starlette.requests import Request
+    from auth.utils import verificar_token_jwt
+
+    def autenticar(role=None):
+        def decorator(func):
+            @wraps(func)
+            async def wrapper(req: Request, *args, **kwargs):
+                # Verificar se o token está presente nos cookies
+                token = req.cookies.get("access_token")
+                if not token:
+                    return JSONResponse(content={"message": "Acesso negado: token não encontrado."}, status_code=403)
+                
+                # Verificar e decodificar o token JWT
+                payload = verificar_token_jwt(token)
+                if not payload:
+                    return JSONResponse(content={"message": "Acesso negado: token inválido."}, status_code=403)
+                
+                # Se uma role específica for exigida, verificá-la
+                if role and payload.get("role") != role:
+                    return JSONResponse(content={"message": "Acesso negado: permissão insuficiente."}, status_code=403)
+                
+                # Armazenar o payload no estado da requisição
+                req.state.user = payload
+                return await func(req, *args, **kwargs)
+            
+            return wrapper
+        return decorator
+
+/home/saide/sympathy/services/notice.py
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    def enviar_email_notificacao(destinatario, assunto, mensagem):
+        remetente = "saideomarsaideleon@gmail.com"
+        senha = "Damasco121"  # Recomendado usar variáveis de ambiente para segurança
+
+        msg = MIMEMultipart()
+        msg['From'] = remetente
+        msg['To'] = destinatario
+        msg['Subject'] = assunto
+
+        corpo = MIMEText(mensagem, 'plain')
+        msg.attach(corpo)
+
+        try:
+            server = smtplib.SMTP('smtp.gmail.com', 587)
+            server.starttls()
+            server.login(remetente, senha)
+            server.sendmail(remetente, destinatario, msg.as_string())
+            server.quit()
+            print(f"E-mail enviado para {destinatario} com sucesso!")
+        except Exception as e:
+            print(f"Erro ao enviar e-mail: {str(e)}")
+
+/home/saide/sympathy/main.py
+    from fasthtml.common import fast_app, serve
+    from auth.decorators.authorization import autenticar
+    from db.models import init_db
+    from app.views import atualizar_agenda, cadastrar_cliente, cadastrar_consultor, criar_agenda, eliminar_agenda, minhas_agendas, template_editar_agenda, login, buscar_agendas_por_assunto, duplicar_agenda, listar_agendas_concluidas, gerar_relatorio_agendas
+
+    from app.templates.forms import template_agenda, template_cliente,template_consultor, template_login, template_buscar_agenda, template_buscar_consultores
+
+    from app.viewsClients import buscar_consultores, detalhes_consultor, fazer_pedido_consulta
+
+
+
+
+
+    # Criar todas as tabelas no banco de dados
+    init_db()
+
+    # Inicialização do aplicativo FastHTML
+    app, rt = fast_app()
+
+    # Formulário de Cadastro de Consultor (Front-End)
+    @rt("/form_cadastrar_consultor")
+    def form_cadastrar_consultor():
+        return template_consultor()
+
+    # Rota para Cadastro de Consultor  (Back-End)
+    @rt("/cadastrar_consultor", methods=["POST"])
+    async def route_consultor(req):
+        return await cadastrar_consultor(req)   
+
+    # Formulário de Cadastro de Cliente (Front-End)
+    @rt("/form_cadastrar_cliente")
+    def form_cadastrar_cliente():
+        return template_cliente()
+
+    # Rota para Cadastro de Cliente (Back-End)
+    @rt("/cadastrar_cliente", methods=["POST"])
+    async def rota_cliente(req):
+        return await cadastrar_cliente(req)
+
+    # Formulário de Login (Front-End)
+    @rt("/form_login")
+    def form_login():
+        return template_login()
+
+    # Função de login para consultores e clientes (Back-End)
+    @rt("/login", methods=["POST"])
+    async def route_login(req):
+        return await login(req)
+
+    # Formulário para Criar Agenda (Front-End)
+    @rt("/form_criar_agenda")
+    def form_criar_agenda():
+        return template_agenda()
+
+    # Rota para Criar Agenda (Back-End)
+    @rt("/criar_agenda", methods=["POST"])
+    @autenticar(role='consultor')
+    async def rota_criar_agenda(req): 
+        return await criar_agenda(req)
+
+    # Rota para listar as agendas do consultor logado e retornar em HTML
+    @rt("/minhas_agendas", methods=["GET"])
+    @autenticar(role='consultor')
+    async def rota_agendas(req):
+        return await minhas_agendas(req)
+
+    # Formulário para buscar agendas
+    @rt("/form_buscar_agenda")
+    @autenticar(role='consultor')  # Apenas consultores podem buscar agendas
+    def form_buscar_agenda():
+        return template_buscar_agenda()
+
+    # Função backend para processar a busca
+    @rt("/buscar_agenda_por_assunto", methods=["POST"])
+    @autenticar(role='consultor')
+    async def rota_buscar_agenda(req):
+        return await buscar_agendas_por_assunto(req)
+
+
+
+    # Rota para eliminar uma agenda do consultor logado 
+    @rt("/eliminar_agenda/{agenda_id}", methods=["POST"]) 
+    @autenticar(role="consultor")
+    async def rota_eliminar_agenda(req, agenda_id: int):
+        return await eliminar_agenda(req, agenda_id)
+
+    # Rota para atualizar uma agenda do consultor logado
+    @rt("/atualizar_agenda/{agenda_id}", methods=["POST"]) 
+    @autenticar(role='consultor')
+    async def rota_atualizar_agenda(req, agenda_id: int):
+    return await atualizar_agenda(req, agenda_id)
+
+    # Formulário para Editar Agenda
+    @rt("/form_editar_agenda/{agenda_id}")
+    @autenticar(role='consultor')
+    async def form_editar_agenda(req, agenda_id: int):
+    return await template_editar_agenda(req, agenda_id)
+
+    # Rota para duplicar uma agenda do consultor logado
+    @rt("/duplicar_agenda/{agenda_id}", methods=["POST"])
+    @autenticar(role='consultor')
+    async def rota_duplicar_agenda(req, agenda_id: int):
+        return await duplicar_agenda(req, agenda_id)
+
+    # Rota para listar agendas concluídas do consultor logado
+    @rt("/historico_agendas", methods=["GET"])
+    @autenticar(role='consultor')
+    async def rota_historico_agendas(req):
+        return await listar_agendas_concluidas(req)
+
+
+    # Rota para gerar o relatório de agendas do consultor logado
+    @rt("/relatorio_agendas", methods=["GET"])
+    @autenticar(role='consultor')
+    async def rota_relatorio_agendas(req):
+        return await gerar_relatorio_agendas(req)
+
+    # Rota HTMX para buscar consultores
+    @rt("/buscar_consultores", methods=["POST"])
+    @autenticar(role='cliente')  # Apenas clientes podem buscar consultores
+    async def rota_buscar_consultores(req):
+        return await buscar_consultores(req)
+
+    # Rota HTMX para ver detalhes de consultor
+    @rt("/detalhes_consultor/{consultor_id}", methods=["GET"])
+    @autenticar(role='cliente')  # Apenas clientes podem visualizar detalhes
+    async def rota_detalhes_consultor(req, consultor_id: int):
+        return await detalhes_consultor(req, consultor_id)
+
+    # Rota HTMX para fazer pedido de consultoria
+    @rt("/fazer_pedido_consulta/{consultor_id}", methods=["POST"])
+    @autenticar(role='cliente')  # Apenas clientes podem fazer pedidos de consultoria
+    async def rota_fazer_pedido(req, consultor_id : int):
+        return await fazer_pedido_consulta(req, consultor_id)
+    
+    # Rota que exibe o formulário de busca de consultores (Frontend)
+    @rt("/form_buscar_consultores")
+    @autenticar(role='cliente')  # Apenas clientes podem buscar consultores
+    async def form_buscar_consultores(req):  # Adicione o parâmetro 'req'
+        return template_buscar_consultores()
+
+    serve()
