@@ -15,7 +15,7 @@ Sympathy é uma aplicação web construída utilizando o framework **FastHTML** 
 
 1. Clone o repositório:
    ```bash
-   git clone <URL-do-repositório>
+   git clone https://github.com/SaideOmaer1240/sympathy.git
    ```
 
 2. Navegue até o diretório do projeto:
