@@ -1,28 +1,78 @@
-from fasthtml.common import Titled, Fieldset, Form, Label, Input, Button, Tr, Td, Table, Thead, Tbody, Tr, Th, Td, Div, P
+from fasthtml.common import Titled, Fieldset, Form, Label, Input, Button, Tr, Td, Table, Thead, Tbody, Tr, Th, Td, Div, P, H1, A , Span
 
 def template_cliente():
-    return Titled("Cadastro de Cliente",
-        Form(method="post", action="/cadastrar_cliente")(
-            Fieldset(
-                Label("Nome: ", Input(name="nome", type="text", required=True)),
-                Label("Email: ", Input(name="email", type="email", required=True)),
-                Label("Senha: ", Input(name="senha", type="password", required=True))
+    return Div(
+        H1("Cadastro de Clientes", cls="text-3xl font-bold text-center mb-6"),
+        Form(
+            Div(
+                Label("Nome: ", cls="block text-sm font-medium text-gray-700"),
+                Input(type="text", name="nome", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"),
+                cls="mb-4"
             ),
-            Button("Cadastrar", type="submit")
-        )
+            Div(
+                Label("Email: ", cls="block text-sm font-medium text-gray-700"),
+                Input(type="email", name="email", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"),
+                cls="mb-4"
+            ),
+            Div(
+                Label("Senha: ", cls="block text-sm font-medium text-gray-700"),
+                Input(type="password", name="senha", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"),
+                cls="mb-4"
+            ),
+            Button("Cadastrar", type="submit", cls="bg-green-500 text-white py-3 px-6 rounded-full hover:bg-green-600 transition-all duration-300"),
+            method="POST", action="/cadastrar_cliente", cls="space-y-4"
+        ),
+        Div(
+            P("Possui uma conta?", cls="text-center mt-4"),
+            Div(
+                A("Login", href="/form_login", cls="text-green-500 hover:underline mx-2"),
+                Span("|", cls="mx-2"),
+                A("Cadastre-se como Consultor", href="/form_cadastrar_consultor", cls="text-green-500 hover:underline mx-2"),
+                cls="text-center"
+            ),
+            cls="mt-6"
+        ),
+        cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg"
     )
 
 def template_consultor():
-    return Titled("Cadastro de Consultor",
-        Form(method="post", action="/cadastrar_consultor")(
-            Fieldset(
-                Label("Nome: ", Input(name="nome", type="text", required=True)),
-                Label("Email: ", Input(name="email", type="email", required=True)),
-                Label("Área de Atuação: ", Input(name="atuacao", type="text", required=True)),
-                Label("Senha: ", Input(name="senha", type="password", required=True))
+    return Div(
+        H1("Cadastro de Consultores", cls="text-3xl font-bold text-center mb-6"),
+        Form(
+            Div(
+                Label("Nome: ", cls="block text-sm font-medium text-gray-700"),
+                Input(type="text", name="nome", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"),
+                cls="mb-4"
             ),
-            Button("Cadastrar", type="submit")
-        )
+            Div(
+                Label("Email: ", cls="block text-sm font-medium text-gray-700"),
+                Input(type="email", name="email", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"),
+                cls="mb-4"
+            ),
+            Div(
+                Label("Área de Atuação: ", cls="block text-sm font-medium text-gray-700"),
+                Input(type="text", name="atuacao", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"),
+                cls="mb-4"
+            ),
+            Div(
+                Label("Senha: ", cls="block text-sm font-medium text-gray-700"),
+                Input(type="password", name="senha", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"),
+                cls="mb-4"
+            ),
+            Button("Cadastrar", type="submit", cls="bg-blue-500 text-white py-3 px-6 rounded-full hover:bg-blue-600 transition-all duration-300"),
+            method="POST", action="/cadastrar_consultor", cls="space-y-4"
+        ),
+        Div(
+            P("Possui uma conta?", cls="text-center mt-4"),
+            Div(
+                A("Login", href="/form_login", cls="text-blue-500 hover:underline mx-2"),
+                Span("|", cls="mx-2"),
+                A("Cadastre-se como Cliente", href="/form_cadastrar_cliente", cls="text-blue-500 hover:underline mx-2"),
+                cls="text-center"
+            ),
+            cls="mt-6"
+        ),
+        cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg"
     )
 
 def template_buscar_consultores():
@@ -43,16 +93,34 @@ def template_buscar_consultores():
             )
         )
 def template_login():
-    return Titled("Login",
-        Form(method="post", action="/login")(
-            Fieldset(
-                Label("Email: ", Input(name="email", type="email", required=True)),
-                Label("Senha: ", Input(name="senha", type="password", required=True))
+    return Div(
+        H1("Login", cls="text-3xl font-bold text-center mb-6"),
+        Form(
+            Div(
+                Label("Email: ", cls="block text-sm font-medium text-gray-700"),
+                Input(type="email", name="email", required=True, placeholder="Email", cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"),
+                cls="mb-4"
             ),
-            Button("Login", type="submit")
-        )
+            Div(
+                Label("Senha: ", cls="block text-sm font-medium text-gray-700"),
+                Input(type="password", name="senha", required=True, placeholder="Senha", cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"),
+                cls="mb-4"
+            ),
+            Button("Entrar", type="submit", cls="bg-indigo-500 text-white py-3 px-6 rounded-full hover:bg-indigo-600 transition-all duration-300"),
+            method="POST", action="/login", hx_post='/verificar-login', hx_target='#body', hx_swap='outerHTML', cls="space-y-4"
+        ),
+        Div(
+            P("Não possui uma conta?", cls="text-center mt-4"),
+            Div(
+                A("Cadastre-se como Consultor", hx_get="/cadastro-consultor", hx_target='#login', hx_swap='outerHTML', cls="text-indigo-500 hover:underline mx-2"),
+                Span("|", cls="mx-2"),
+                A("Cadastre-se como Cliente", hx_get="/cadastro-cliente", hx_target='#login', hx_swap='outerHTML', cls="text-indigo-500 hover:underline mx-2"),
+                cls="text-center"
+            ),
+            cls="mt-6"
+        ),
+        cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg", id='login'
     )
-
 
 def template_agenda():
     return Titled("Criar Agenda",

@@ -1,10 +1,10 @@
-from fasthtml.common import fast_app, serve
+from fasthtml.common import *
 from auth.decorators.authorization import autenticar
 from db.models import init_db
 from app.views import atualizar_agenda, cadastrar_cliente, cadastrar_consultor, criar_agenda, eliminar_agenda, minhas_agendas, template_editar_agenda, login, buscar_agendas_por_assunto, duplicar_agenda, listar_agendas_concluidas, gerar_relatorio_agendas
 from app.view_pedidos import aceitar_pedido, listar_pedidos, recusar_pedido
 from app.templates.forms import template_agenda, template_cliente,template_consultor, template_login, template_buscar_agenda, template_buscar_consultores
-
+from components.hero.hero import HeroSection, CardsSection, Navbar
 from app.viewsClients import buscar_consultores, detalhes_consultor, fazer_pedido_consulta
 
 
@@ -16,6 +16,53 @@ init_db()
 
 # Inicialização do aplicativo FastHTML
 app, rt = fast_app()
+
+# Página inicial
+@app.get("/")
+async def homepage():
+    return Html( 
+   Head(
+            Meta(name="viewport", content="width=device-width, initial-scale=1.0"),
+            Meta(charset="UTF-8"),
+            Title("Sympathy"),
+            Link(href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css", rel="stylesheet"),
+            Link(rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"),
+
+            Link(href="static/css/styles.css", rel="stylesheet"),
+             
+            Script("""
+                function toggleMenu() {
+                    var sidebar = document.getElementById("sidebar");
+                    sidebar.classList.toggle("hidden");
+                }
+            """, type="text/javascript"),
+
+            
+            
+            Script(src='https://unpkg.com/htmx.org@2.0.2', integrity="sha384-Y7hw+L/jvKeWIRRkqWYfPcvVxHzVzn5REgzbawhxAuQGwX1XWe70vji+VSeHOThJ" ,crossorigin="anonymous"),
+        ), 
+        
+    Body(
+        Div(
+        
+        # Navbar
+        Navbar(),
+        
+        # Hero Section
+        HeroSection(),
+        
+        # Cards Section
+        CardsSection(),
+        
+        # Footer
+        Footer(),
+        cls='w-full bg-gradient-to-r from-gray-900 to-indigo-800 h-screen'
+    ), id='body', cls='max-h-screen'
+
+        )
+        , 
+)
+
 
 # Formulário de Cadastro de Consultor (Front-End)
 @rt("/form_cadastrar_consultor")
