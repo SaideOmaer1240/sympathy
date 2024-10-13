@@ -25,14 +25,14 @@ def template_cliente():
         Div(
             P("Possui uma conta?", cls="text-center mt-4"),
             Div(
-                A("Login", href="/form_login", cls="text-green-500 hover:underline mx-2"),
+                A("Login", hx_get="/form_login", hx_target='#forms', hx_swap='#outerHTML', cls="text-green-500 hover:underline mx-2"),
                 Span("|", cls="mx-2"),
-                A("Cadastre-se como Consultor", href="/form_cadastrar_consultor", cls="text-green-500 hover:underline mx-2"),
+                A("Cadastre-se como Consultor", hx_get="/form_cadastrar_consultor", hx_target='#forms', hx_swap='outerHTML', cls="text-green-500 hover:underline mx-2"),
                 cls="text-center"
             ),
             cls="mt-6"
         ),
-        cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg"
+        cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg", id='forms'
     )
 
 def template_consultor():
@@ -65,14 +65,14 @@ def template_consultor():
         Div(
             P("Possui uma conta?", cls="text-center mt-4"),
             Div(
-                A("Login", href="/form_login", cls="text-blue-500 hover:underline mx-2"),
+                A("Login", hx_get="/form_login", hx_target='#forms', hx_swap='outerHTML', cls="text-blue-500 hover:underline mx-2"),
                 Span("|", cls="mx-2"),
-                A("Cadastre-se como Cliente", href="/form_cadastrar_cliente", cls="text-blue-500 hover:underline mx-2"),
+                A("Cadastre-se como Cliente", hx_get="/form_cadastrar_cliente", hx_target='#forms', hx_swap='outerHTML', cls="text-blue-500 hover:underline mx-2"),
                 cls="text-center"
             ),
             cls="mt-6"
         ),
-        cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg"
+        cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg", id='forms'
     )
 
 def template_buscar_consultores():
@@ -112,14 +112,14 @@ def template_login():
         Div(
             P("Não possui uma conta?", cls="text-center mt-4"),
             Div(
-                A("Cadastre-se como Consultor", hx_get="/cadastro-consultor", hx_target='#login', hx_swap='outerHTML', cls="text-indigo-500 hover:underline mx-2"),
+                A("Cadastre-se como Consultor", hx_get="/form_cadastrar_consultor", hx_target='#forms', hx_swap='outerHTML', cls="text-indigo-500 hover:underline mx-2"),
                 Span("|", cls="mx-2"),
-                A("Cadastre-se como Cliente", hx_get="/cadastro-cliente", hx_target='#login', hx_swap='outerHTML', cls="text-indigo-500 hover:underline mx-2"),
+                A("Cadastre-se como Cliente", hx_get="/form_cadastrar_cliente", hx_target='#forms', hx_swap='outerHTML', cls="text-indigo-500 hover:underline mx-2"),
                 cls="text-center"
             ),
             cls="mt-6"
         ),
-        cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg", id='login'
+        cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg", id='forms'
     )
 
 def template_agenda():
