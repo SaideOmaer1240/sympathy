@@ -1,13 +1,13 @@
-from fasthtml.common import Titled, Tr, Td, P, Button, Form, Table, Th, Thead, Tbody, Fieldset, Input, Label 
+from fasthtml.common import Titled, Tr, Td, P, Button, Form, Table, Th, Thead, Tbody, Fieldset, Input, Label, RedirectResponse
 from sqlalchemy.exc import IntegrityError  
-from starlette.responses import JSONResponse  
+from starlette.responses import JSONResponse, HTMLResponse, RedirectResponse
 from sqlalchemy.exc import IntegrityError
 from db.models import Agenda, Cliente, Consultor,Pedido, Session
 from auth.utils import gerar_token_jwt, hash_senha, verificar_senha 
 from services.notice import enviar_email_notificacao
 from datetime import datetime
 from sqlalchemy import func  
-  
+from components.dashboard.consultores.template import dashboard 
 
 
 async def cadastrar_consultor(req):
@@ -77,10 +77,11 @@ async def login(req):
     consultor = session.query(Consultor).filter(Consultor.email == email).first()
     if consultor and verificar_senha(senha, consultor.senha):
         token = gerar_token_jwt(email, "consultor")
-        response = JSONResponse(content={"message": "Login realizado com sucesso!", "token": token}, status_code=200)
-        response.set_cookie(key="access_token", value=token, httponly=True)
+          
+        res = RedirectResponse(url='/connected_as_a_consultant', status_code=303)
+        res.set_cookie(key="access_token", value=token, httponly=True) 
         session.close()
-        return response
+        return res
 
     # Verifica se o usuário é cliente
     cliente = session.query(Cliente).filter(Cliente.email == email).first()

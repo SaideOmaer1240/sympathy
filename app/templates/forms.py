@@ -107,7 +107,7 @@ def template_login():
                 cls="mb-4"
             ),
             Button("Entrar", type="submit", cls="bg-indigo-500 text-white py-3 px-6 rounded-full hover:bg-indigo-600 transition-all duration-300"),
-            method="POST", action="/login", hx_post='/verificar-login', hx_target='#body', hx_swap='outerHTML', cls="space-y-4"
+            method="POST", action="/login", hx_post='/login', hx_target='#body', hx_swap='outerHTML', cls="space-y-4"
         ),
         Div(
             P("Não possui uma conta?", cls="text-center mt-4"),

@@ -6,6 +6,7 @@ from app.view_pedidos import aceitar_pedido, listar_pedidos, recusar_pedido
 from app.templates.forms import template_agenda, template_cliente,template_consultor, template_login, template_buscar_agenda, template_buscar_consultores
 from components.hero.hero import HeroSection, CardsSection, Navbar
 from app.viewsClients import buscar_consultores, detalhes_consultor, fazer_pedido_consulta
+from components.dashboard.consultores.template import dashboard
 
 
 
@@ -93,6 +94,17 @@ def form_login():
 @rt("/login", methods=["POST"])
 async def route_login(req):
      return await login(req)
+
+# Função para redirecionar consultor pre-logado
+@rt("/connected_as_a_consultant") 
+async def consultor_logado(req):
+    return await dashboard(req)
+
+# Função de dashboard para consultores 
+@rt("/dashboard_consultor")
+@autenticar(role='consultor')
+async def dashboards(req):
+    return await dashboard(req)
 
 # Formulário para Criar Agenda (Front-End)
 @rt("/form_criar_agenda")

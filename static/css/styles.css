@@ -1,0 +1,117 @@
+/* Sidebar Responsiva */
+@media(max-width: 500px){
+    .sidebar-hidden{
+        display: none !important;
+    }
+}
+
+.icon-container {
+  transition: margin-left 0.3s; /* Transição suave */
+}
+
+/* Quando a sidebar estiver minimizada, adicione esta classe */
+.sidebar.-translate-x-full .icon-container {
+  margin-left: 200px; /* Ajuste este valor conforme necessário */
+}
+
+.menu-text {
+  transition: opacity 0.3s; /* Transição suave para o texto */
+}
+
+.menu-icon {
+  cursor: pointer;
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+}
+
+  
+#cards-section {
+    overflow: hidden;
+    height: 0; /* Começa oculto */
+}
+
+
+.sidebar-visible {
+    display: block !important; /* Mostra o sidebar quando o menu é ativado */
+}
+
+.sidebar-expanded {
+    width: 100% !important; /* Expande a sidebar em mobile para preencher a tela */
+}
+  
+@media (max-width: 768px) {
+    .esconder-no-movel {
+      display: none;
+    }
+  }
+  
+
+.agenda-list {
+    max-height: 60vh !important; /* Limitar a altura das listas de agendas em mobile */
+    overflow-y: scroll !important;
+}
+
+/* Garantir que o botão de menu seja sempre visível */
+.menu-icon {
+    font-size: 2rem !important;
+    cursor: pointer !important;
+}
+
+.sidebar-hidden {
+    display: none;
+  }
+  
+  .md:sidebar-visible {
+    display: block;
+  }
+  
+  .main {
+    flex-grow: 1;
+  }
+  
+
+
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Uma coluna por padrão */
+    gap: 1rem; /* Espaçamento entre os cards */
+  }
+  
+  .dashboard-grid-md {
+    grid-template-columns: repeat(2, 1fr); /* Em telas médias, dois cards por linha */
+  }
+  
+  .dashboard-grid-lg {
+    grid-template-columns: repeat(4, 1fr); /* Em telas grandes, quatro cards por linha */
+  }
+  /* Customizar a barra de rolagem */
+::-webkit-scrollbar {
+    width: 12px !important;
+    height: 12px !important;
+  }
+  
+  /* Customizar o fundo da barra de rolagem */
+  ::-webkit-scrollbar-track {
+    background: #e0e0e0 !important;
+  }
+  
+  /* Customizar o polegar da barra de rolagem */
+  ::-webkit-scrollbar-thumb {
+    background-color: #4a90e2 !important; /* Azul suave */
+    border-radius: 6px !important;
+    border: 3px solid #ffffff !important; /* Para adicionar espaçamento e contraste */
+  }
+  
+  /* Mudar cor do polegar ao passar o mouse */
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #357ABD !important; /* Azul mais escuro ao hover */
+  }
+  
+  /* Customizar cantos de barra de rolagem */
+  ::-webkit-scrollbar-corner {
+    background: #f0f0f0 !important;
+  }
+  
+  
