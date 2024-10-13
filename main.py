@@ -4,13 +4,12 @@ from db.models import init_db
 from app.views import atualizar_agenda, cadastrar_cliente, cadastrar_consultor, criar_agenda, eliminar_agenda, minhas_agendas, template_editar_agenda, login, buscar_agendas_por_assunto, duplicar_agenda, listar_agendas_concluidas, gerar_relatorio_agendas
 from app.view_pedidos import aceitar_pedido, listar_pedidos, recusar_pedido
 from app.templates.forms import template_agenda, template_cliente,template_consultor, template_login, template_buscar_agenda, template_buscar_consultores
-from components.hero.hero import HeroSection, CardsSection, Navbar
+from components.hero.template import HeroSection, CardsSection, Navbar
 from app.viewsClients import buscar_consultores, detalhes_consultor, fazer_pedido_consulta
 from components.dashboard.consultores.template import dashboard
-
-
-
-
+from components.head.template import head
+from components.login import conectar
+from components.exceptions.message import notice
 
 # Criar todas as tabelas no banco de dados
 init_db()
@@ -22,26 +21,7 @@ app, rt = fast_app()
 @app.get("/")
 async def homepage():
     return Html( 
-   Head(
-            Meta(name="viewport", content="width=device-width, initial-scale=1.0"),
-            Meta(charset="UTF-8"),
-            Title("Sympathy"),
-            Link(href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css", rel="stylesheet"),
-            Link(rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"),
-
-            Link(href="static/css/styles.css", rel="stylesheet"),
-             
-            Script("""
-                function toggleMenu() {
-                    var sidebar = document.getElementById("sidebar");
-                    sidebar.classList.toggle("hidden");
-                }
-            """, type="text/javascript"),
-
-            
-            
-            Script(src='https://unpkg.com/htmx.org@2.0.2', integrity="sha384-Y7hw+L/jvKeWIRRkqWYfPcvVxHzVzn5REgzbawhxAuQGwX1XWe70vji+VSeHOThJ" ,crossorigin="anonymous"),
-        ), 
+        head(),
         
     Body(
         Div(
@@ -100,6 +80,15 @@ async def route_login(req):
 async def consultor_logado(req):
     return await dashboard(req)
 
+# Função para redirecionar o usuario para login apos o cadastro
+@rt("/conectar")
+async def connect():
+    return conectar()
+
+# Rota para apresentar mensagem caso o email já foi usado
+@rt('/exist_consultant')
+async def exit_email_con():
+    return notice(msg='Email já cadastrado.', url1='/conectar', actionName1='Entrar')
 # Função de dashboard para consultores 
 @rt("/dashboard_consultor")
 @autenticar(role='consultor')

@@ -1,13 +1,12 @@
 from fasthtml.common import Titled, Tr, Td, P, Button, Form, Table, Th, Thead, Tbody, Fieldset, Input, Label, RedirectResponse
 from sqlalchemy.exc import IntegrityError  
-from starlette.responses import JSONResponse, HTMLResponse, RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse
 from sqlalchemy.exc import IntegrityError
-from db.models import Agenda, Cliente, Consultor,Pedido, Session
+from db.models import Agenda, Cliente, Consultor, Session
 from auth.utils import gerar_token_jwt, hash_senha, verificar_senha 
 from services.notice import enviar_email_notificacao
 from datetime import datetime
-from sqlalchemy import func  
-from components.dashboard.consultores.template import dashboard 
+from sqlalchemy import func   
 
 
 async def cadastrar_consultor(req):
@@ -26,13 +25,14 @@ async def cadastrar_consultor(req):
     session = Session()
     consultor = Consultor(nome=nome, email=email, atuacao=atuacao, senha=senha_hashed)
     
+     
     try:
         session.add(consultor)
         session.commit()
-        return JSONResponse(content={"message": "Consultor cadastrado com sucesso!"}, status_code=201)
+        return RedirectResponse(url='/conectar', status_code=303)
     except IntegrityError:
         session.rollback()
-        return JSONResponse(content={"message": "Email já cadastrado."}, status_code=400)
+        return RedirectResponse(url='/exist_consultant', status_code=303)
     finally:
         session.close()
 
