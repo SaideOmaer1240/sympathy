@@ -272,16 +272,15 @@
         Bases.metadata.create_all(engine)
 
 /home/saide/sympathy/app/views.py
-    from fasthtml.common import Titled, Tr, Td, P, Button, Form, Table, Th, Thead, Tbody, Fieldset, Input, Label 
+    from fasthtml.common import Titled, Tr, Td, P, Button, Form, Table, Th, Thead, Tbody, Fieldset, Input, Label, RedirectResponse
     from sqlalchemy.exc import IntegrityError  
-    from starlette.responses import JSONResponse  
+    from starlette.responses import JSONResponse, RedirectResponse
     from sqlalchemy.exc import IntegrityError
-    from db.models import Agenda, Cliente, Consultor,Pedido, Session
+    from db.models import Agenda, Cliente, Consultor, Session
     from auth.utils import gerar_token_jwt, hash_senha, verificar_senha 
     from services.notice import enviar_email_notificacao
     from datetime import datetime
-    from sqlalchemy import func  
-    
+    from sqlalchemy import func   
 
 
     async def cadastrar_consultor(req):
@@ -300,13 +299,14 @@
         session = Session()
         consultor = Consultor(nome=nome, email=email, atuacao=atuacao, senha=senha_hashed)
         
+        
         try:
             session.add(consultor)
             session.commit()
-            return JSONResponse(content={"message": "Consultor cadastrado com sucesso!"}, status_code=201)
+            return RedirectResponse(url='/consultant', status_code=307)
         except IntegrityError:
             session.rollback()
-            return JSONResponse(content={"message": "Email já cadastrado."}, status_code=400)
+            return RedirectResponse(url='/exist', status_code=307)
         finally:
             session.close()
 
@@ -329,11 +329,11 @@
         try:
             session.add(cliente)
             session.commit()
-            return JSONResponse(content={"message": "Cliente cadastrado com sucesso!"}, status_code=201)
+            return RedirectResponse(url='/client', status_code=307)
+            
         except IntegrityError:
             session.rollback()
-            return JSONResponse(content={"message": "Email já cadastrado."}, status_code=400)
-        finally:
+            return RedirectResponse(url='/exist', status_code=307)
             session.close()
 
 
@@ -351,20 +351,22 @@
         consultor = session.query(Consultor).filter(Consultor.email == email).first()
         if consultor and verificar_senha(senha, consultor.senha):
             token = gerar_token_jwt(email, "consultor")
-            response = JSONResponse(content={"message": "Login realizado com sucesso!", "token": token}, status_code=200)
-            response.set_cookie(key="access_token", value=token, httponly=True)
+            
+            res = RedirectResponse(url='/connected_as_a_consultant', status_code=303)
+            res.set_cookie(key="access_token", value=token, httponly=True) 
             session.close()
-            return response
+            return res
 
         # Verifica se o usuário é cliente
         cliente = session.query(Cliente).filter(Cliente.email == email).first()
         if cliente and verificar_senha(senha, cliente.senha):
             token = gerar_token_jwt(email, "cliente")
-            response = JSONResponse(content={"message": f"Bem-vindo, Cliente {cliente.nome}!", "token": token}, status_code=200)
+            response = RedirectResponse(url='/dashboard_cliente', status_code=307)
+            
             response.set_cookie(key="access_token", value=token, httponly=True)
             session.close()
             return response
-
+                        
         session.close()
         return JSONResponse(content={"message": "Credenciais inválidas."}, status_code=401)
 
@@ -582,12 +584,13 @@
             consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
             
             if not consultor:
+                session.close()
                 return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
 
-            # Buscar a agenda pelo ID e verificar se pertence ao consultor logado
-            agenda = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.consultor_id == consultor.id).first()
-            
-            if not agenda:
+            # Buscar a agenda pelo ID e verificar se pertence ao consultor via Pedido
+            agenda = session.query(Agenda).filter(Agenda.id == agenda_id).first()
+
+            if not agenda or agenda.pedido.consultor_id != consultor.id:
                 return JSONResponse(content={"message": "Agenda não encontrada ou não pertence ao consultor."}, status_code=404)
             
             # Eliminar a agenda
@@ -602,7 +605,6 @@
         
         finally:
             session.close()
-
 
     async def form_editar_agenda(req, agenda_id: int):
         session = Session()
@@ -661,7 +663,8 @@
 
             agenda.assunto = novo_assunto
             agenda.data = nova_data
-            agenda.horario = novo_horario
+            agenda.horario = novo_horario 
+
             session.commit()
 
             # Enviar notificação de atualização
@@ -751,7 +754,32 @@
         finally:
             session.close()
 
-/home/saide/sympathy/app/viewsClients.py
+/home/saide/sympathy/components/dashboard/clientes/template.py
+    from fasthtml.common import Titled, Div, P
+    from db.models import Session, Cliente
+    from starlette.responses import RedirectResponse
+
+    async def dashbord(req):
+        # Logica
+        email = req.state.user['sub']
+
+        # Buscar cliente logado
+        session = Session()
+        cliente = session.query(Cliente).filter(Cliente.email == email).first()
+
+        if not cliente:
+            return RedirectResponse(url='/client', status_code=307)
+        session.close()
+
+        # Retornar resposta
+        return Titled(
+            'Area de cliente',
+            Div(
+                P(f"Bem-vindo, Cliente {cliente.nome}!")
+            )
+        )
+
+ /home/saide/sympathy/app/viewsClients.py
     from fasthtml.common import Titled, P, Button, Ul, Li, Div 
     from db.models import Cliente, Consultor, Pedido, Avaliacao, Agenda, Session  
     from auth.decorators.goodcookies import goodcookies
@@ -857,62 +885,469 @@
 
         return Titled("Detalhes do Consultor", detalhes_html)
 
+/home/saide/sympathy/components/dashboard/consultores/template.py
+    from fasthtml.common import Body, Div, H1, I, H3, H5, P, Button, Span, Ul, Li, A, Textarea, Section,   Script
+
+    async def dashboard(req):
+        # Logica
+
+
+        # Retornar resultados
+        return Body(
+            Section(
+                # Sidebar
+                Div(
+                Div(
+                        A("Sympathy", href="#", cls="text-2xl font-bold m-4"),
+                        
+                        cls="flex justify-between items-center w-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white",),
+                    
+                    Ul(
+                        Li(
+                            A(
+                                I(cls="fas fa-calendar-plus mr-2"), 
+                                Span("Criar Agenda", cls="menu-text"), 
+                                href="#", 
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ),
+                        Li(
+                            A(
+                                I(cls="fas fa-calendar-check mr-2"), 
+                                Span("Ver Agendas Ocupadas", cls="menu-text"), 
+                                href="#", 
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ),
+                        Li(
+                            A(
+                                I(cls="fas fa-calendar-alt mr-2"), 
+                                Span("Ver Agendas Livres", cls="menu-text"), 
+                                href="#", 
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ),
+                        Li(
+                            A(
+                                I(cls="fas fa-user-check mr-2"), 
+                                Span("Clientes Atendidos", cls="menu-text"), 
+                                href="#", 
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ),
+                        Li(
+                            A(
+                                I(cls="fas fa-user-times mr-2"), 
+                                Span("Clientes Não Atendidos", cls="menu-text"), 
+                                href="#", 
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ),
+                        Li(
+                            A(
+                                I(cls="fas fa-user-md mr-2"), 
+                                Span("Pedidos de Consulta", cls="menu-text"), 
+                                href="#", 
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ),
+                        cls="space-y-4", id="sidebar-menu"
+                        ),
+                    
+                    cls="sidebar fixed top-0 md:relative md:top-auto left-0 w-64 h-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white transition-transform transform -translate-x-full md:translate-x-0", id="sidebar"
+                ),
+
+                # Main Content Area      
+                Div(
+                    Div(
+                        A(),
+                        A("Painel de Consultor", href="#", cls="text-2xl font-bold m-4 items-end"),
+                        
+                        # Ícone do menu para dispositivos móveis
+                        Button("☰", cls="text-white m-4 text-3xl md:hidden", onclick="toggleSidebar()", id="menu-toggle"),
+                        cls="flex justify-between items-center w-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white",),
+
+                    # Cards Section
+                    Div(
+                        Div(
+                            Div(
+                                P("Agendas Ocupadas", cls="text-gray-500"),
+                                H3("12", cls="text-3xl font-bold text-gray-900"),
+                                cls="p-6 bg-white shadow rounded-lg"
+                            ),
+                            Div(
+                                P("Agendas Livres", cls="text-gray-500"),
+                                H3("8", cls="text-3xl font-bold text-gray-900"),
+                                cls="p-6 bg-white shadow rounded-lg"
+                            ),
+                            Div(
+                                P("Clientes Atendidos", cls="text-gray-500"),
+                                H3("20", cls="text-3xl font-bold text-gray-900"),
+                                cls="p-6 bg-white shadow rounded-lg"
+                            ),
+                            Div(
+                                P("Pedidos de Consulta", cls="text-gray-500"),
+                                H3("5", cls="text-3xl font-bold text-gray-900"),
+                                cls="p-6 bg-white shadow rounded-lg"
+                            ),
+                            cls="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+                        ),
+                        cls="p-8",
+                        id="cards-section"
+                    ),
+                    
+                    Div(
+                        Button('▼ Agendas Recentes', cls='text-2xl ml-10 font-bold text-purple-700 mb-4', id='toggle-button', onclick="toggleCardsSection()"),
+                        Div(
+                            Div(
+                                Div(
+                                    P("Data: 02/10/2024", cls="text-gray-500"),
+                                    P("Horário: 14h00 - 15h00", cls="text-gray-700"),
+                                    P("Cliente: João Silva", cls="text-gray-700"),
+                                    Button("Ver Detalhes", cls="text-white bg-blue-500 hover:bg-blue-700 px-4 py-2 rounded mt-2"),
+                                    cls="p-4 bg-white shadow-md rounded-lg mb-4"
+                                ),
+                                Div(
+                                    P("Data: 02/10/2024", cls="text-gray-500"),
+                                    P("Horário: 16h00 - 17h00", cls="text-gray-700"),
+                                    P("Cliente: Maria Santos", cls="text-gray-700"),
+                                    Button("Ver Detalhes", cls="text-white bg-blue-500 hover:bg-blue-700 px-4 py-2 rounded mt-2"),
+                                    cls="p-4 bg-white shadow-md rounded-lg mb-4"
+                                ),
+                                cls="space-y-4 agenda-list"
+                            ),
+                            cls="px-8 py-4 overflow-auto", style='height: 20rem', id='agenda-list'
+                        ),
+                    ),
+                    cls="w-full main bg-gray-100", id='main'
+                ),
+                cls="flex fixed flex-col md:h-full md:flex-row w-full top-0",
+            ),
+            Script(src='static/js/toggle/agendasRecents.js'),
+            Script(src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"),
+            Script(src='static/js/toggle/toggleSidebar.js' ),
+            cls="flex flex-col md:flex-row w-full top-0",
+        )
+
+ /home/saide/sympathy/components/head/template.py   
+
+/home/saide/sympathy/components/hero/template.py
+    from fasthtml.common import Div, H1, I, H3,  P, Button, Span, Ul, Li, A,  H2, H3, Nav, Ul, Li, P, A, Form, Input, Button, Script
+
+    # Navbar
+    def Navbar():
+        return Nav(
+            Div(
+                Div(
+                        A("Sympathy", href="#", cls="text-2xl font-bold m-4"),
+                        
+                        cls="flex justify-between items-center w-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white",),
+                    
+                    Ul(
+                        Li(
+                            A(
+                                I(cls="fas fa-lightbulb mr-2"),  # Ícone de ideia adicionado
+                                Span("Home", cls="menu-text"), 
+                                hx_get="/", hx_target='#body', hx_swap='outerHTML', 
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ),
+                        Li(
+                            A(
+                                I(cls="fas fa-lightbulb mr-2"),  # Ícone de ideia adicionado
+                                Span("Login", cls="menu-text"), 
+                                hx_get="/form_login", hx_target='#hero', hx_swap='outerHTML', 
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ),
+                        Li(
+                            A(
+                                I(cls="fas fa-lightbulb mr-2"),  # Ícone de ideia adicionado
+                                Span("Cadastre-se como Consultor", cls="menu-text"), 
+                                hx_get="/form_cadastrar_consultor", hx_target='#hero', hx_swap='outerHTML', 
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ),
+                        Li(
+                            A(
+                                I(cls="fas fa-lightbulb mr-2"),  # Ícone de ideia adicionado
+                                Span("Cadastre-se como cliente", cls="menu-text"), 
+                                hx_get="/form_cadastrar_cliente", hx_target='#hero', hx_swap='outerHTML', 
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ), 
+                        cls="space-y-4", id="sidebar-menu"
+                    ),
+                    cls="sidebar fixed top-0 md:hidden md:top-auto left-0 w-64 h-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white transition-transform transform -translate-x-full md:translate-x-0", id="sidebar"
+                ),
+
+    
+            Div(
+                Div(
+                    A("Sympathy", href="#", cls="text-2xl font-bold text-white"),
+                    
+                    # Ícone do menu para dispositivos móveis
+                    A("☰", href="#", cls="text-white text-3xl md:hidden", onclick="toggleSidebar()", id="menu-toggle"),
+
+                    # Menu completo, oculto em telas menores e mostrado em telas grandes
+                    Ul(
+                        Li(A("Home", hx_get="/", hx_target='#body', hx_swap='outerHTML', cls="text-gray-300 hover:text-white hover:shadow-md transition duration-300")),
+                        Li(A("Consultores", href="#", cls="text-gray-300 hover:text-white hover:shadow-md transition duration-300")),
+                        Li(A("Login", hx_get="/form_login", hx_target='#hero', hx_swap='outerHTML', cls="text-gray-300 hover:text-white hover:shadow-md transition duration-300")),
+                        Li(A("Contato", href="#", cls="text-gray-300 hover:text-red hover:shadow-md transition duration-300")),
+                        cls="hidden md:flex space-x-6 pr-10"  # Oculto em telas pequenas (md:hidden), mostrado em médias ou maiores (md:flex)
+                ),
+
+
+                    cls="flex justify-between items-center w-full"
+                ),
+                cls="bg-blue-900 py-6 px-8 shadow-lg w-full"
+            ), 
+            cls='w-full fixed top-0 z-10'
+        )
+
+    # Hero Section
+    def HeroSection():
+        return Div(
+            Div(
+                H1("Encontre os Melhores Consultores para Suas Necessidades", 
+                cls="text-5xl font-bold text-white mb-4 animate-fade-in lg:mr-20 md:mr-10 sm:mr-4"),
+                P("Plataforma que conecta clientes a profissionais qualificados.",
+                cls="text-lg text-gray-300 mb-8"),
+                Div(
+                    A("Cadastre-se como Consultor", hx_get="/form_cadastrar_consultor", hx_target='#hero', hx_swap='outerHTML',  
+                    cls="bg-white text-indigo-600 px-6 py-3 rounded-full font-semibold hover:bg-gray-200 transition duration-300"),
+                    A("Encontre um Consultor", hx_get="/form_cadastrar_cliente", 
+                    hx_target='#hero', hx_swap='outerHTML',   cls="ml-4 bg-indigo-500 text-white px-6 py-3 rounded-full font-semibold hover:bg-indigo-700 transition duration-300"),
+                    cls="flex justify-center space-x-4"
+                ),
+                cls="text-center"
+            ),
+            Script(src='static/js/toggle/agendasRecents.js'),
+            Script(src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"),
+            Script(src='static/js/toggle/toggleSidebar.js' ),
+
+            cls="bg-gradient-to-r from-gray-900 to-indigo-800 h-screen flex items-center justify-center w-full", id='hero',  
+        )
+
+    # Cards Section
+    def CardsSection():
+        cards = [
+            {"title": "Consultoria de TI", "description": "Especialistas em tecnologia para otimizar seu negócio."},
+            {"title": "Consultoria Financeira", "description": "Gerenciamento financeiro e contabilidade."},
+            {"title": "Consultoria em Marketing", "description": "Estrategistas para aumentar sua presença no mercado."}
+        ]
+        
+        return Div(
+            H2("Nossos Consultores", cls="text-3xl font-bold text-center my-10 text-gray-800"),
+            Div(
+                *[Card(card["title"], card["description"]) for card in cards],
+                cls="flex flex-wrap justify-center space-x-4 space-y-6 md:space-y-0 md:space-x-8"  # Ajustes no espaçamento e flex-wrap
+            ),
+            cls="py-16 bg-gray-100"
+        )
+
+    def Card(title, description):
+        return Div(
+            Div(
+                H3(title, cls="text-xl font-semibold mb-4"),
+                P(description, cls="text-gray-700 mb-4"),
+                A("Saiba Mais", href="#", cls="text-indigo-600 font-semibold hover:underline"),
+                cls="p-6 bg-white rounded-lg shadow-lg hover:shadow-2xl transition-transform transform hover:scale-105 hover:bg-gray-50"
+            ),
+            cls="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 mb-6"  # Classes responsivas para definir colunas
+        )
+
+    # Footer
+    def Footer():
+        return Div(
+            P("© 2024 Plataforma de Consultores. Todos os direitos reservados.",
+            cls="text-center text-gray-600 py-4"),
+            cls="bg-gray-900"
+        )
+
+    def buscar_consultores_div():
+        return Div(
+                Form(
+                    Div(
+                        Input(type="text", name="area_atuacao", placeholder="Área de Atuação", cls="border p-2 mb-4"),
+                        Button("Buscar", type="submit", cls="bg-blue-500 text-white p-2 rounded"),
+                        cls="flex flex-col"
+                    ),
+                    method="POST"
+                ),
+                cls="flex justify-center items-center h-screen bg-gray-100"
+            )
+
+/home/saide/sympathy/components/head/template.py
+    from fasthtml.common import Head, Meta, Link, Title, Script
+    def head():
+        return Head(
+                Meta(name="viewport", content="width=device-width, initial-scale=1.0"),
+                Meta(charset="UTF-8"),
+                Title("Sympathy"),
+                Link(href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css", rel="stylesheet"),
+                Link(rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"),
+
+                Link(href="static/css/styles.css", rel="stylesheet"),
+                
+                Script("""
+                    function toggleMenu() {
+                        var sidebar = document.getElementById("sidebar");
+                        sidebar.classList.toggle("hidden");
+                    }
+                """, type="text/javascript"),
+    
+                Script(src='https://unpkg.com/htmx.org@2.0.2', integrity="sha384-Y7hw+L/jvKeWIRRkqWYfPcvVxHzVzn5REgzbawhxAuQGwX1XWe70vji+VSeHOThJ" ,crossorigin="anonymous"),
+            )
+
+/home/saide/sympathy/components/exceptions/message.py
+    from fasthtml.common import Div, H1, Script, A
+    def notice(msg, url1=None, actionName1=None, url2=None, actionName2=None):
+        return Div(
+            Div(
+                H1(f"{msg}", 
+                cls="text-5xl font-bold text-white mb-4 animate-fade-in lg:mr-20 md:mr-10 sm:mr-4"),
+                Div(
+                    A(f"{actionName1 if actionName1 is not None else ''}", hx_get=f"{url1}", hx_target='#hero', hx_swap='outerHTML',  
+                    cls="bg-white text-indigo-600 px-6 py-3 rounded-full font-semibold hover:bg-gray-200 transition duration-300"),
+                    A(f"{ actionName2 if actionName2 is not None else '' }", hx_get=f"{url2}", 
+                    hx_target='#hero', hx_swap='outerHTML',   cls="ml-4 bg-indigo-500 text-white px-6 py-3 rounded-full font-semibold hover:bg-indigo-700 transition duration-300"),
+                    cls="flex justify-center space-x-4"
+                ),
+                cls="text-center"
+            ),
+            Script(src='static/js/toggle/agendasRecents.js'),
+            Script(src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"),
+            Script(src='static/js/toggle/toggleSidebar.js' ),
+
+            cls="bg-gradient-to-r from-gray-900 to-indigo-800 h-screen flex items-center justify-center w-full", id='hero',  
+        )
+
 /home/saide/sympathy/app/templates/forms.py
-    from fasthtml.common import Titled, Fieldset, Form, Label, Input, Button, Tr, Td, Table, Thead, Tbody, Tr, Th, Td, Div, P
+    from fasthtml.common import Titled, Fieldset, Form, Label, Input, Button, Tr, Td, Table, Thead, Tbody, Tr, Th, Td, Div, P, H1, A , Span
 
     def template_cliente():
-        return Titled("Cadastro de Cliente",
-            Form(method="post", action="/cadastrar_cliente")(
-                Fieldset(
-                    Label("Nome: ", Input(name="nome", type="text", required=True)),
-                    Label("Email: ", Input(name="email", type="email", required=True)),
-                    Label("Senha: ", Input(name="senha", type="password", required=True))
+        return Div(
+            H1("Cadastro de Clientes", cls="text-3xl font-bold text-center mb-6"),
+            Form(
+                Div(
+                    Label("Nome: ", cls="block text-sm font-medium text-gray-700"),
+                    Input(type="text", name="nome", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"),
+                    cls="mb-4"
                 ),
-                Button("Cadastrar", type="submit")
-            )
+                Div(
+                    Label("Email: ", cls="block text-sm font-medium text-gray-700"),
+                    Input(type="email", name="email", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"),
+                    cls="mb-4"
+                ),
+                Div(
+                    Label("Senha: ", cls="block text-sm font-medium text-gray-700"),
+                    Input(type="password", name="senha", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"),
+                    cls="mb-4"
+                ),
+                Button("Cadastrar", type="submit", cls="bg-green-500 text-white py-3 px-6 rounded-full hover:bg-green-600 transition-all duration-300"),
+                method="POST", action="/cadastrar_cliente", cls="space-y-4"
+            ),
+            Div(
+                P("Possui uma conta?", cls="text-center mt-4"),
+                Div(
+                    A("Login", hx_get="/form_login", hx_target='#forms', hx_swap='#outerHTML', cls="text-green-500 hover:underline mx-2"),
+                    Span("|", cls="mx-2"),
+                    A("Cadastre-se como Consultor", hx_get="/form_cadastrar_consultor", hx_target='#forms', hx_swap='outerHTML', cls="text-green-500 hover:underline mx-2"),
+                    cls="text-center"
+                ),
+                cls="mt-6"
+            ),
+            cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg", id='forms'
         )
 
     def template_consultor():
-        return Titled("Cadastro de Consultor",
-            Form(method="post", action="/cadastrar_consultor")(
-                Fieldset(
-                    Label("Nome: ", Input(name="nome", type="text", required=True)),
-                    Label("Email: ", Input(name="email", type="email", required=True)),
-                    Label("Área de Atuação: ", Input(name="atuacao", type="text", required=True)),
-                    Label("Senha: ", Input(name="senha", type="password", required=True))
+        return Div(
+            H1("Cadastro de Consultores", cls="text-3xl font-bold text-center mb-6"),
+            Form(
+                Div(
+                    Label("Nome: ", cls="block text-sm font-medium text-gray-700"),
+                    Input(type="text", name="nome", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"),
+                    cls="mb-4"
                 ),
-                Button("Cadastrar", type="submit")
-            )
+                Div(
+                    Label("Email: ", cls="block text-sm font-medium text-gray-700"),
+                    Input(type="email", name="email", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"),
+                    cls="mb-4"
+                ),
+                Div(
+                    Label("Área de Atuação: ", cls="block text-sm font-medium text-gray-700"),
+                    Input(type="text", name="atuacao", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"),
+                    cls="mb-4"
+                ),
+                Div(
+                    Label("Senha: ", cls="block text-sm font-medium text-gray-700"),
+                    Input(type="password", name="senha", required=True, cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"),
+                    cls="mb-4"
+                ),
+                Button("Cadastrar", type="submit", cls="bg-blue-500 text-white py-3 px-6 rounded-full hover:bg-blue-600 transition-all duration-300"),
+                method="POST", action="/cadastrar_consultor", cls="space-y-4"
+            ),
+            Div(
+                P("Possui uma conta?", cls="text-center mt-4"),
+                Div(
+                    A("Login", hx_get="/form_login", hx_target='#forms', hx_swap='outerHTML', cls="text-blue-500 hover:underline mx-2"),
+                    Span("|", cls="mx-2"),
+                    A("Cadastre-se como Cliente", hx_get="/form_cadastrar_cliente", hx_target='#forms', hx_swap='outerHTML', cls="text-blue-500 hover:underline mx-2"),
+                    cls="text-center"
+                ),
+                cls="mt-6"
+            ),
+            cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg", id='forms'
         )
 
     def template_buscar_consultores():
-        return Titled("Buscar Consultores",
-            Form(method="post", action="/buscar_consultores", hx_post="/buscar_consultores", hx_target="#lista-consultores")(
-                Fieldset(
-                    Label("Nome ou Área de Atuação: ", Input(name="termo", type="text", required=True)),
-                    Label("Avaliação Mínima: ", Input(name="avaliacao_minima", type="number", step="0.1", min="1", max="5")),
-                    Label("Apenas Disponíveis: ", Input(name="apenas_disponiveis", type="checkbox"))
+            return Titled("Buscar Consultores",
+                Form(method="post", action="/buscar_consultores", hx_post="/buscar_consultores", hx_target="#lista-consultores")(
+                    Fieldset(
+                        Label("Nome ou Área de Atuação: ", Input(name="termo", type="text", required=True)),
+                        Label("Avaliação Mínima: ", Input(name="avaliacao_minima", type="number", step="0.1", min="1", max="5")),
+                        Label("Apenas Disponíveis: ", Input(name="apenas_disponiveis", type="checkbox"))
+                    ),
+                    Button("Buscar", type="submit")
                 ),
-                Button("Buscar", type="submit")
-            ),
-            Div(id="lista-consultores", style="margin-top: 20px;")(),  # Onde a lista de consultores será renderizada
-            Div(id="detalhes-consultor", style="display:none; margin-top: 20px;")(
-                P("Nome: ", id="consultor-nome"),
-                P("Área de Atuação: ", id="consultor-atuacao"),
-                Button("Solicitar Consultoria", id="btn-solicitar", hx_post="/fazer_pedido_consulta", hx_trigger="click", hx_vals="{consultor_id: consultorId}")
+                Div(id="lista-consultores", style="margin-top: 20px;")(),  # Onde a lista de consultores será renderizada
+                Div(id="detalhes-consultor", style="display:none; margin-top: 20px;")(
+                    P("Nome: ", id="consultor-nome"),
+                    P("Área de Atuação: ", id="consultor-atuacao"),
+                    Button("Solicitar Consultoria", id="btn-solicitar", hx_post="/fazer_pedido_consulta", hx_trigger="click", hx_vals="{consultor_id: consultorId}")
+                )
             )
-        )
     def template_login():
-        return Titled("Login",
-            Form(method="post", action="/login")(
-                Fieldset(
-                    Label("Email: ", Input(name="email", type="email", required=True)),
-                    Label("Senha: ", Input(name="senha", type="password", required=True))
+        return Div(
+            H1("Login", cls="text-3xl font-bold text-center mb-6"),
+            Form(
+                Div(
+                    Label("Email: ", cls="block text-sm font-medium text-gray-700"),
+                    Input(type="email", name="email", required=True, placeholder="Email", cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"),
+                    cls="mb-4"
                 ),
-                Button("Login", type="submit")
-            )
+                Div(
+                    Label("Senha: ", cls="block text-sm font-medium text-gray-700"),
+                    Input(type="password", name="senha", required=True, placeholder="Senha", cls="border border-gray-300 p-3 rounded w-full mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"),
+                    cls="mb-4"
+                ),
+                Button("Entrar", type="submit", cls="bg-indigo-500 text-white py-3 px-6 rounded-full hover:bg-indigo-600 transition-all duration-300"),
+                method="POST", action="/login", hx_post='/login', hx_target='#body', hx_swap='outerHTML', cls="space-y-4"
+            ),
+            Div(
+                P("Não possui uma conta?", cls="text-center mt-4"),
+                Div(
+                    A("Cadastre-se como Consultor", hx_get="/form_cadastrar_consultor", hx_target='#forms', hx_swap='outerHTML', cls="text-indigo-500 hover:underline mx-2"),
+                    Span("|", cls="mx-2"),
+                    A("Cadastre-se como Cliente", hx_get="/form_cadastrar_cliente", hx_target='#forms', hx_swap='outerHTML', cls="text-indigo-500 hover:underline mx-2"),
+                    cls="text-center"
+                ),
+                cls="mt-6"
+            ),
+            cls="container mx-auto max-w-lg mt-20 p-6 bg-white shadow-md rounded-lg", id='forms'
         )
-
 
     def template_agenda():
         return Titled("Criar Agenda",
@@ -1006,6 +1441,419 @@
             )
         )
 
+/home/saide/sympathy/components/login.py
+    from fasthtml.common import Html,Body, Div
+    from components.hero.template import Navbar
+    from components.head.template import head
+    from app.templates.forms import template_login
+
+    def conectar():
+        return Html( 
+            head(),
+        Body(
+            Div(
+            Navbar(),
+            template_login()
+            ,
+            cls='w-full bg-gradient-to-r from-gray-900 to-indigo-800 h-screen'
+        ), id='body', cls='max-h-screen'
+
+            )
+            , 
+    )
+
+/home/saide/sympathy/static/css/styles.css
+    /* Sidebar Responsiva */
+    @media(max-width: 500px){
+        .sidebar-hidden{
+            display: none !important;
+        }
+    }
+
+    .icon-container {
+    transition: margin-left 0.3s; /* Transição suave */
+    }
+
+    /* Quando a sidebar estiver minimizada, adicione esta classe */
+    .sidebar.-translate-x-full .icon-container {
+    margin-left: 200px; /* Ajuste este valor conforme necessário */
+    }
+
+    .menu-text {
+    transition: opacity 0.3s; /* Transição suave para o texto */
+    }
+
+    .menu-icon {
+    cursor: pointer;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1000;
+    }
+
+    
+    #cards-section {
+        overflow: hidden;
+        height: 0; /* Começa oculto */
+    }
+
+
+    .sidebar-visible {
+        display: block !important; /* Mostra o sidebar quando o menu é ativado */
+    }
+
+    .sidebar-expanded {
+        width: 100% !important; /* Expande a sidebar em mobile para preencher a tela */
+    }
+    
+    @media (max-width: 768px) {
+        .esconder-no-movel {
+        display: none;
+        }
+    }
+    
+
+    .agenda-list {
+        max-height: 60vh !important; /* Limitar a altura das listas de agendas em mobile */
+        overflow-y: scroll !important;
+    }
+
+    /* Garantir que o botão de menu seja sempre visível */
+    .menu-icon {
+        font-size: 2rem !important;
+        cursor: pointer !important;
+    }
+
+    .sidebar-hidden {
+        display: none;
+    }
+    
+    .md:sidebar-visible {
+        display: block;
+    }
+    
+    .main {
+        flex-grow: 1;
+    }
+    
+
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 1fr; /* Uma coluna por padrão */
+        gap: 1rem; /* Espaçamento entre os cards */
+    }
+    
+    .dashboard-grid-md {
+        grid-template-columns: repeat(2, 1fr); /* Em telas médias, dois cards por linha */
+    }
+    
+    .dashboard-grid-lg {
+        grid-template-columns: repeat(4, 1fr); /* Em telas grandes, quatro cards por linha */
+    }
+    /* Customizar a barra de rolagem */
+    ::-webkit-scrollbar {
+        width: 12px !important;
+        height: 12px !important;
+    }
+    
+    /* Customizar o fundo da barra de rolagem */
+    ::-webkit-scrollbar-track {
+        background: #e0e0e0 !important;
+    }
+    
+    /* Customizar o polegar da barra de rolagem */
+    ::-webkit-scrollbar-thumb {
+        background-color: #4a90e2 !important; /* Azul suave */
+        border-radius: 6px !important;
+        border: 3px solid #ffffff !important; /* Para adicionar espaçamento e contraste */
+    }
+    
+    /* Mudar cor do polegar ao passar o mouse */
+    ::-webkit-scrollbar-thumb:hover {
+        background-color: #357ABD !important; /* Azul mais escuro ao hover */
+    }
+    
+    /* Customizar cantos de barra de rolagem */
+    ::-webkit-scrollbar-corner {
+        background: #f0f0f0 !important;
+    }
+    
+/home/saide/sympathy/static/js/toggle/agendasRecents.js
+    // Função para alternar a exibição da seção de agendas recentes
+        function toggleCardsSection() {
+            var cardsSection = document.getElementById("cards-section");
+            var toggleButton = document.getElementById("toggle-button");
+            var agendaList = document.getElementById("agenda-list");
+
+            // Se a seção estiver visível, esconda-a
+            if (cardsSection.style.height === "" || cardsSection.style.height === "0px") {
+                gsap.to(cardsSection, { height: "auto", duration: 0.5, ease: "power2.out" });
+                toggleButton.innerHTML = '▲ Agendas Recentes';
+                agendaList.style.height = '20rem';
+            } else {
+                gsap.to(cardsSection, { height: 0, duration: 0.5, ease: "power2.in" });
+                toggleButton.innerHTML = '▼ Agendas Recentes';
+                agendaList.style.height = 'auto';
+            }
+        }
+    
+/home/saide/sympathy/static/js/toggle/toggleSidebar.js
+    function toggleSidebar() {
+        var sidebar = document.querySelector(".sidebar");
+        var menuTextItems = document.querySelectorAll('.menu-text');
+        if (sidebar.classList.contains("-translate-x-full")) {
+            gsap.to(sidebar, { x: 0, duration: 0.5, ease: "power2.out" });
+            sidebar.classList.remove("-translate-x-full");
+            // Exibir o texto
+            menuTextItems.forEach(item => item.classList.remove('hidden'));
+        } else {
+            gsap.to(sidebar, { x: -256, duration: 0.5, ease: "power2.in" });
+            sidebar.classList.add("-translate-x-full");
+            // Ocultar o texto
+            menuTextItems.forEach(item => item.classList.add('hidden'));
+        }
+    }
+
+    
+
+    // Fechar o menu ao clicar em qualquer link
+    document.querySelectorAll('.sidebar-link').forEach(link => {
+        link.addEventListener('click', () => {
+            var sidebar = document.querySelector(".sidebar");
+            var menuTextItems = document.querySelectorAll('.menu-text');
+            if (!sidebar.classList.contains("-translate-x-full")) {
+                gsap.to(sidebar, { x: -256, duration: 0.5, ease: "power2.in" });
+                sidebar.classList.add("-translate-x-full");
+                // Ocultar o texto
+                menuTextItems.forEach(item => item.classList.add('hidden'));
+            }
+        });
+    });   
+        
+/home/saide/sympathy/app/view_pedidos.py
+    from db.models import Pedido, Consultor, Agenda, Session
+    from fasthtml.common import Titled, Tr, Td, Button, Table, Thead, Tbody, Th, P
+    from starlette.responses import JSONResponse
+    from datetime import datetime, timezone
+
+    async def aceitar_pedido(req, pedido_id: int):
+        session = Session()
+        consultor_email = req.state.user["sub"]  # Email do consultor logado, extraído do token
+
+        try:
+            # Buscar o consultor logado
+            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+            if not consultor:
+                session.close()
+                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+            # Buscar o pedido de consultoria
+            pedido = session.query(Pedido).filter(Pedido.id == pedido_id, Pedido.consultor_id == consultor.id).first()
+            if not pedido:
+                session.close()
+                return JSONResponse(content={"message": "Pedido não encontrado."}, status_code=404)
+
+            # Atualizar o status do pedido para "aceito"
+            pedido.status = "aceito"
+            session.commit()
+
+            # Criar uma agenda para esse pedido
+            nova_agenda = Agenda(
+                pedido_id=pedido.id, 
+                assunto=f"Consulta com {pedido.cliente.nome}",  
+                data=datetime.now(timezone.utc).date(),  
+                horario=datetime.now(timezone.utc).time(),  
+                created_at=datetime.now(timezone.utc),
+            )
+            session.add(nova_agenda)
+            session.commit()
+
+            return JSONResponse(content={"message": "Pedido aceito e agenda criada com sucesso!"}, status_code=200)
+
+        except Exception as e:
+            session.rollback()
+            return JSONResponse(content={"message": f"Erro ao aceitar pedido: {str(e)}"}, status_code=500)
+        
+        finally:
+            session.close()
+
+    async def listar_pedidos(req):
+        session = Session()
+        consultor_email = req.state.user["sub"]  # Email do consultor logado, extraído do token
+
+        # Buscar o consultor logado
+        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+        if not consultor:
+            session.close()
+            return Titled("Erro", P("Consultor não encontrado."))
+
+        # Buscar todos os pedidos pendentes para esse consultor
+        pedidos = session.query(Pedido).filter(Pedido.consultor_id == consultor.id, Pedido.status == "pendente").all()
+        
+        if not pedidos:
+            session.close()
+            return Titled("Pedidos de Consultoria", P("Nenhum pedido pendente encontrado."))
+
+        # Construir a tabela de pedidos com botões para aceitar ou recusar
+        pedido_rows = [
+            Tr(
+                Td(f"Cliente: {p.cliente.nome}"),  # Nome do cliente
+                Td(f"Data: {p.created_at}"),  # Data do pedido
+                Td(Button("Aceitar", onclick=f"window.location.href='/aceitar_pedido/{p.id}'")),
+                Td(Button("Recusar", onclick=f"window.location.href='/recusar_pedido/{p.id}'"))
+            ) for p in pedidos
+        ]
+
+        session.close()
+
+        return Titled("Pedidos de Consultoria",
+            Table(
+                Thead(
+                    Tr(Th("Cliente"), Th("Data"), Th("Aceitar"), Th("Recusar"))
+                ),
+                Tbody(*pedido_rows)
+            )
+        )
+
+
+    async def recusar_pedido(req, pedido_id: int):
+        session = Session()
+        consultor_email = req.state.user["sub"]  # Email do consultor logado, extraído do token
+
+        try:
+            # Buscar o consultor logado
+            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+            if not consultor:
+                session.close()
+                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+            # Buscar o pedido de consultoria
+            pedido = session.query(Pedido).filter(Pedido.id == pedido_id, Pedido.consultor_id == consultor.id).first()
+            if not pedido:
+                session.close()
+                return JSONResponse(content={"message": "Pedido não encontrado."}, status_code=404)
+
+            # Atualizar o status do pedido para "recusado"
+            pedido.status = "recusado"
+            session.commit()
+
+            return JSONResponse(content={"message": "Pedido recusado com sucesso!"}, status_code=200)
+
+        except Exception as e:
+            session.rollback()
+            return JSONResponse(content={"message": f"Erro ao recusar pedido: {str(e)}"}, status_code=500)
+        
+        finally:
+            session.close()
+
+/home/saide/sympathy/app/viewsClients.py
+    from fasthtml.common import Titled, P, Button, Ul, Li, Div 
+    from db.models import Cliente, Consultor, Pedido, Avaliacao, Agenda, Session  
+    from auth.decorators.goodcookies import goodcookies
+    from sqlalchemy import or_, func
+    from starlette.responses import JSONResponse  
+
+    # Função para fazer pedido de consultoria
+    async def fazer_pedido_consulta(req, consultor_id: int):
+
+        # Debug: Verificar se o consultor_id foi recebido corretamente
+        print("consultor_id recebido do cookie:", consultor_id)
+
+        # Se o consultor_id não estiver presente, retornar um erro
+        if not consultor_id:
+            return Titled("Erro", P("Consultor ID não encontrado nos cookies."))
+
+        # Extraindo o cliente_email do JWT
+        cliente_email = req.state.user["sub"]  # Cliente logado extraído do JWT
+
+        session = Session()
+        cliente = session.query(Cliente).filter(Cliente.email == cliente_email).first()
+
+        if not cliente:
+            session.close()
+            return Titled("Erro", P("Cliente não encontrado."))
+
+        try:
+            # Criar o pedido de consultoria com o consultor_id e cliente_id
+            pedido = Pedido(consultor_id=consultor_id, cliente_id=cliente.id, status="pendente")
+            session.add(pedido)
+            session.commit()
+
+            session.close()
+            return Titled("Sucesso", P("Pedido de consultoria enviado com sucesso!"))
+        except Exception as e:
+            session.rollback()
+            session.close()
+            return Titled("Erro", P(f"Ocorreu um erro ao criar o pedido: {str(e)}"))
+
+    # Função para buscar consultores com filtros
+    async def buscar_consultores(req):
+            form_data = await req.form()
+            termo_pesquisa = form_data.get("termo")  # Termo para busca por nome ou área de atuação
+            avaliacao_minima = form_data.get("avaliacao_minima")  # Filtro de avaliação mínima
+            apenas_disponiveis = form_data.get("apenas_disponiveis")  # Filtro de disponibilidade
+
+            session = Session()
+
+            # Query base para buscar consultores
+            query = session.query(Consultor).filter(
+                or_(
+                    Consultor.nome.ilike(f'%{termo_pesquisa}%'),
+                    Consultor.atuacao.ilike(f'%{termo_pesquisa}%')
+                )
+            )
+
+            # Filtro por avaliação mínima
+            if avaliacao_minima:
+                query = query.join(Avaliacao).group_by(Consultor.id).having(func.avg(Avaliacao.nota) >= avaliacao_minima)
+
+            # Filtro de disponibilidade (consultores com agenda disponível)
+            if apenas_disponiveis:
+                query = query.outerjoin(Agenda).filter(Agenda.id == None)  # Consultores sem agenda vinculada
+
+            consultores = query.all()
+            session.close()
+
+            if not consultores:
+                return Titled("Nenhum consultor encontrado.")
+
+            # Gerar a lista de consultores em HTML
+            consultores_html = Ul(*[
+                Li(f"{consultor.nome} - {consultor.atuacao}",
+                    hx_get=f"/detalhes_consultor/{consultor.id}",
+                    hx_target="#detalhes-consultor",
+                    hx_swap="outerHTML"
+                ) for consultor in consultores
+            ])
+
+            return Titled("Lista de Consultores", consultores_html)
+
+    
+    # Função para exibir os detalhes do consultor
+    async def detalhes_consultor(req, consultor_id: int):
+        session = Session()
+
+        # Definir cookie com consultor_id para futuras interações
+        response = JSONResponse(content={"message": "Armazenamento realizado com sucesso!", "consultor ID": consultor_id})
+        response.set_cookie(key="consultor_id", value=str(consultor_id), httponly=True)  # Corrigido para garantir o valor correto
+
+        # Buscar consultor pelo ID
+        consultor = session.query(Consultor).filter(Consultor.id == consultor_id).first()
+        session.close()
+
+        if not consultor:
+            return Titled("Erro", P("Consultor não encontrado."), status_code=404)
+
+        # Retornar os detalhes do consultor em HTML
+        detalhes_html = Div(
+            P(f"Nome: {consultor.nome}"),
+            P(f"Área de Atuação: {consultor.atuacao}"),
+            Button("Solicitar Consultoria", hx_post=f"/fazer_pedido_consulta/{consultor.id}", hx_trigger="click" )
+        )
+
+        return Titled("Detalhes do Consultor", detalhes_html)
+
 /home/saide/sympathy/auth/utils.py
     from datetime import datetime, timedelta, timezone
     import bcrypt
@@ -1092,24 +1940,53 @@
             print(f"Erro ao enviar e-mail: {str(e)}")
 
 /home/saide/sympathy/main.py
-    from fasthtml.common import fast_app, serve
+    from fasthtml.common import *
     from auth.decorators.authorization import autenticar
     from db.models import init_db
     from app.views import atualizar_agenda, cadastrar_cliente, cadastrar_consultor, criar_agenda, eliminar_agenda, minhas_agendas, template_editar_agenda, login, buscar_agendas_por_assunto, duplicar_agenda, listar_agendas_concluidas, gerar_relatorio_agendas
-
+    from app.view_pedidos import aceitar_pedido, listar_pedidos, recusar_pedido
     from app.templates.forms import template_agenda, template_cliente,template_consultor, template_login, template_buscar_agenda, template_buscar_consultores
-
+    from components.hero.template import HeroSection, CardsSection, Navbar
     from app.viewsClients import buscar_consultores, detalhes_consultor, fazer_pedido_consulta
-
-
-
-
+    from components.dashboard.consultores.template import dashboard
+    from components.dashboard.clientes.template import dashbord as area_client
+    from components.head.template import head
+    from components.login import conectar
+    from components.exceptions.message import notice
 
     # Criar todas as tabelas no banco de dados
     init_db()
 
     # Inicialização do aplicativo FastHTML
     app, rt = fast_app()
+
+    # Página inicial
+    @app.get("/")
+    async def homepage():
+        return Html( 
+            head(),
+            
+        Body(
+            Div(
+            
+            # Navbar
+            Navbar(),
+            
+            # Hero Section
+            HeroSection(),
+            
+            # Cards Section
+            CardsSection(),
+            
+            # Footer
+            Footer(),
+            cls='w-full bg-gradient-to-r from-gray-900 to-indigo-800 h-screen'
+        ), id='body', cls='max-h-screen'
+
+            )
+            , 
+    )
+
 
     # Formulário de Cadastro de Consultor (Front-End)
     @rt("/form_cadastrar_consultor")
@@ -1140,6 +2017,40 @@
     @rt("/login", methods=["POST"])
     async def route_login(req):
         return await login(req)
+
+    # Função para redirecionar consultor pre-logado
+    @rt("/connected_as_a_consultant") 
+    async def consultor_logado(req):
+        return await dashboard(req)
+
+    # Função para redirecionar o usuario para login apos o cadastro
+    @rt("/consultant")
+    async def connect():
+        return conectar()
+
+    # Função para redirecionar o usuario para login apos o cadastro
+    @rt("/client")
+    @autenticar(role='cliente')
+    async def connect(req):
+        return await area_client(req)
+
+    # Rota para apresentar mensagem caso o email já foi usado
+    @rt('/exist')
+    async def exit_email_con():
+        return notice(msg='Email já cadastrado.', url1='/consultant', actionName1='Conectar-se como consultor', url2='/client',actionName2='Conectar-se como cliente')
+
+    # Função de dashboard para consultores 
+    @rt("/dashboard_consultor")
+    @autenticar(role='consultor')
+    async def dashboards(req):
+        return await dashboard(req)
+
+    # Função de dashboard para clientes 
+    @rt("/dashboard_cliente")
+    @autenticar(role='cliente')
+    async def cliente(req):
+        return await area_client(req)
+
 
     # Formulário para Criar Agenda (Front-End)
     @rt("/form_criar_agenda")
@@ -1232,5 +2143,23 @@
     @autenticar(role='cliente')  # Apenas clientes podem buscar consultores
     async def form_buscar_consultores(req):  # Adicione o parâmetro 'req'
         return template_buscar_consultores()
+
+    # Rota para listar pedidos pendentes
+    @rt("/listar_pedidos", methods=["GET"])
+    @autenticar(role='consultor')
+    async def rota_listar_pedidos(req):
+        return await listar_pedidos(req)
+
+    # Rota para aceitar um pedido
+    @rt("/aceitar_pedido/{pedido_id}", methods=["GET"])
+    @autenticar(role='consultor')
+    async def rota_aceitar_pedido(req, pedido_id: int):
+        return await aceitar_pedido(req, pedido_id)
+
+    # Rota para recusar um pedido
+    @rt("/recusar_pedido/{pedido_id}", methods=["GET"])
+    @autenticar(role='consultor')
+    async def rota_recusar_pedido(req, pedido_id: int):
+        return await recusar_pedido(req, pedido_id)
 
     serve()

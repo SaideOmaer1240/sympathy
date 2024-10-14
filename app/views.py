@@ -29,10 +29,10 @@ async def cadastrar_consultor(req):
     try:
         session.add(consultor)
         session.commit()
-        return RedirectResponse(url='/conectar', status_code=303)
+        return RedirectResponse(url='/consultant', status_code=307)
     except IntegrityError:
         session.rollback()
-        return RedirectResponse(url='/exist_consultant', status_code=303)
+        return RedirectResponse(url='/exist', status_code=307)
     finally:
         session.close()
 
@@ -55,11 +55,11 @@ async def cadastrar_cliente(req):
     try:
         session.add(cliente)
         session.commit()
-        return JSONResponse(content={"message": "Cliente cadastrado com sucesso!"}, status_code=201)
+        return RedirectResponse(url='/client', status_code=307)
+         
     except IntegrityError:
         session.rollback()
-        return JSONResponse(content={"message": "Email já cadastrado."}, status_code=400)
-    finally:
+        return RedirectResponse(url='/exist', status_code=307)
         session.close()
 
 
@@ -87,11 +87,12 @@ async def login(req):
     cliente = session.query(Cliente).filter(Cliente.email == email).first()
     if cliente and verificar_senha(senha, cliente.senha):
         token = gerar_token_jwt(email, "cliente")
-        response = JSONResponse(content={"message": f"Bem-vindo, Cliente {cliente.nome}!", "token": token}, status_code=200)
+        response = RedirectResponse(url='/dashboard_cliente', status_code=307)
+         
         response.set_cookie(key="access_token", value=token, httponly=True)
         session.close()
         return response
-
+                    
     session.close()
     return JSONResponse(content={"message": "Credenciais inválidas."}, status_code=401)
 

@@ -7,6 +7,7 @@ from app.templates.forms import template_agenda, template_cliente,template_consu
 from components.hero.template import HeroSection, CardsSection, Navbar
 from app.viewsClients import buscar_consultores, detalhes_consultor, fazer_pedido_consulta
 from components.dashboard.consultores.template import dashboard
+from components.dashboard.clientes.template import dashbord as area_client
 from components.head.template import head
 from components.login import conectar
 from components.exceptions.message import notice
@@ -81,19 +82,33 @@ async def consultor_logado(req):
     return await dashboard(req)
 
 # Função para redirecionar o usuario para login apos o cadastro
-@rt("/conectar")
+@rt("/consultant")
 async def connect():
     return conectar()
 
+# Função para redirecionar o usuario para login apos o cadastro
+@rt("/client")
+@autenticar(role='cliente')
+async def connect(req):
+    return await area_client(req)
+
 # Rota para apresentar mensagem caso o email já foi usado
-@rt('/exist_consultant')
+@rt('/exist')
 async def exit_email_con():
-    return notice(msg='Email já cadastrado.', url1='/conectar', actionName1='Entrar')
+    return notice(msg='Email já cadastrado.', url1='/consultant', actionName1='Conectar-se como consultor', url2='/client',actionName2='Conectar-se como cliente')
+
 # Função de dashboard para consultores 
 @rt("/dashboard_consultor")
 @autenticar(role='consultor')
 async def dashboards(req):
     return await dashboard(req)
+
+# Função de dashboard para clientes 
+@rt("/dashboard_cliente")
+@autenticar(role='cliente')
+async def cliente(req):
+    return await area_client(req)
+
 
 # Formulário para Criar Agenda (Front-End)
 @rt("/form_criar_agenda")
