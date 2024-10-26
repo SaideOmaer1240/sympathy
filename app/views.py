@@ -2,11 +2,85 @@ from fasthtml.common import Titled, Tr, Td, P, Button, Form, Table, Th, Thead, T
 from sqlalchemy.exc import IntegrityError  
 from starlette.responses import JSONResponse, RedirectResponse
 from sqlalchemy.exc import IntegrityError
-from db.models import Agenda, Cliente, Consultor, Session
+from db.models import Agenda, Cliente, Consultor, Pedido, Session
 from auth.utils import gerar_token_jwt, hash_senha, verificar_senha 
 from services.notice import enviar_email_notificacao
 from datetime import datetime
 from sqlalchemy import func   
+  
+
+async def obter_agendas_recentes(req):
+    session = Session()
+    consultor_email = req.state.user["sub"]  # Extrai o e-mail do consultor autenticado
+
+    # Identifica o consultor logado
+    consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+    if not consultor:
+        session.close()
+        return []
+    print(consultor.nome)
+
+    # Busca as agendas associadas ao consultor, ordenadas pela data de criação, limitando a um número específico, como 5
+    agendas = (
+        session.query(Agenda)
+        .join(Pedido, Agenda.pedido_id == Pedido.id)
+        .filter(Pedido.consultor_id == consultor.id)
+        .order_by(Agenda.data.desc())
+        .limit(5)  # Limita para exibir apenas as 5 agendas mais recentes
+        .all()
+    )
+
+    # Formata os dados da agenda para serem usados no dashboard
+    agenda_list = [
+        {
+            "id": agenda.id,
+            "data": agenda.data.strftime("%d/%m/%Y"),
+            "horario": agenda.horario.strftime("%H:%M"),
+            "cliente": agenda.pedido.cliente.nome if agenda.pedido else "N/A"
+        }
+        for agenda in agendas
+    ]
+
+    session.close()
+    return agenda_list
+
+async def contar_agendas_ocupadas(req):
+    session = Session()
+    consultor_email = req.state.user["sub"]  # Extrai o e-mail do consultor autenticado
+
+    # Conta as agendas que têm um pedido associado (ou seja, estão ocupadas)
+    count = session.query(Agenda).filter(Agenda.pedido_id.isnot(None)).count()
+    session.close()
+    return count
+
+async def contar_agendas_livres(req):
+    session = Session()
+    consultor_email = req.state.user["sub"]
+
+    # Conta as agendas que não têm um pedido associado (ou seja, estão livres)
+    count = session.query(Agenda).filter(Agenda.pedido_id.is_(None)).count()
+    session.close()
+    return count
+
+async def contar_clientes_atendidos(req):
+    session = Session()
+    consultor_email = req.state.user["sub"]
+
+    # Conta os clientes atendidos por este consultor
+    count = session.query(Pedido).filter(Pedido.status == "atendido", Pedido.consultor.has(email=consultor_email)).count()
+    session.close()
+    return count
+
+async def contar_pedidos_pendentes(req):
+    session = Session()
+    consultor_email = req.state.user["sub"]
+
+    # Conta os pedidos de consulta que estão pendentes para este consultor
+    count = session.query(Pedido).filter(Pedido.consultor.has(email=consultor_email), Pedido.status == "pendente").count()
+    session.close()
+    return count
+
+
 
 
 async def cadastrar_consultor(req):

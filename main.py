@@ -1,5 +1,5 @@
 from fasthtml.common import *
-from auth.decorators.authorization import autenticar
+from auth.decorators.authorization import autenticar 
 from db.models import init_db
 from app.views import atualizar_agenda, cadastrar_cliente, cadastrar_consultor, criar_agenda, eliminar_agenda, minhas_agendas, template_editar_agenda, login, buscar_agendas_por_assunto, duplicar_agenda, listar_agendas_concluidas, gerar_relatorio_agendas
 from app.view_pedidos import aceitar_pedido, listar_pedidos, recusar_pedido
@@ -16,8 +16,7 @@ from components.exceptions.message import notice
 init_db()
 
 # Inicialização do aplicativo FastHTML
-app, rt = fast_app()
-
+app, rt = fast_app() 
 # Página inicial
 @app.get("/")
 async def homepage():
