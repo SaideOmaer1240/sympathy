@@ -229,48 +229,81 @@ async def minhas_agendas(req):
     consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
     if not consultor:
         session.close()
-        return Titled("Erro", 
-                P("Consultor não encontrado.")
-            ) 
+        return Titled(
+            "Erro",
+            P("Consultor não encontrado.", cls="text-center text-red-500 text-lg")
+        )
 
     # Buscar agendas do consultor
     agendas = session.query(Agenda).filter(Agenda.pedido.has(consultor_id=consultor.id)).all()
 
     if not agendas:
         session.close()
-        return  Titled("Minhas Agendas", 
-                P("Nenhuma agenda encontrada.")
-            )
-        
-    # Gerar tabela de agendas, incluindo o novo campo "assunto"
+        return Titled(
+            "Minhas Agendas",
+            P("Nenhuma agenda encontrada.", cls="text-center text-gray-500 text-lg")
+        )
+
+    # Gerar tabela de agendas, incluindo o campo "assunto"
     agenda_rows = [
         Tr(
-            Td(a.assunto),  # Mostrando o assunto da agenda
-            Td(str(a.data)),
-            Td(str(a.horario)),
-            Td(Button("Editar", onclick=f"window.location.href='/form_editar_agenda/{a.id}'")),
-            Td(Form(method="post", action=f"/eliminar_agenda/{a.id}")(
-                Button("Eliminar", type="submit", style="background-color: red; color: white;")
-            ))
+            Td(a.assunto, cls="p-4 text-gray-700"),
+            Td(str(a.data), cls="p-4 text-gray-600"),
+            Td(str(a.horario), cls="p-4 text-gray-600"),
+            Td(
+                Button(
+                    "Editar",
+                    hx_get=f"/form_editar_agenda/{a.id}",  # Utiliza HTMX para carregar o formulário de edição
+                    hx_target="#main-panel",  # ID do elemento de destino onde o formulário de edição será carregado
+                    hx_swap="outerHTML",
+                    cls="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded"
+                ),
+                cls="text-center"
+            ),
+            Td(
+                Form(
+                    method="post",
+                    action=f"/eliminar_agenda/{a.id}",
+                    hx_post=f"/eliminar_agenda/{a.id}",  # Configuração HTMX para excluir o item
+                    hx_target="#main-panel",  # ID do elemento onde a lista de agendas será atualizada
+                    hx_swap="outerHTML"
+                )(
+                    Button(
+                        "Eliminar",
+                        type="submit",
+                        cls="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded"
+                    )
+                ),
+                cls="text-center"
+            )
         ) for a in agendas
     ]
 
+
     session.close()
 
-    return Div( Button('▼ Agendas', cls='text-2xl ml-10 font-bold text-purple-700 mb-4', id='toggle-button', onclick="toggleCardsSection('Agendas')"),  
-            Table(
-                Thead(
-                    Tr(
-                        Th("Assunto"),
-                        Th("Data"),
-                        Th("Horário"),
-                        Th("Editar"),
-                        Th("Eliminar")
-                    )
-                ),
-                Tbody(*agenda_rows)
-            )
-        )
+    return Div(
+        Button(
+            '▼ Agendas',
+            cls='text-2xl ml-10 font-bold text-purple-700 mb-4',
+            id='toggle-button',
+            onclick="toggleCardsSection('Agendas')"
+        ),
+        Table(
+            Thead(
+                Tr(
+                    Th("Assunto", cls="p-4 border-b-2 border-gray-200 text-left text-gray-800"),
+                    Th("Data", cls="p-4 border-b-2 border-gray-200 text-left text-gray-800"),
+                    Th("Horário", cls="p-4 border-b-2 border-gray-200 text-left text-gray-800"),
+                    Th("Editar", cls="p-4 border-b-2 border-gray-200 text-center text-gray-800"),
+                    Th("Eliminar", cls="p-4 border-b-2 border-gray-200 text-center text-gray-800")
+                )
+            ),
+            Tbody(*agenda_rows),
+            cls="min-w-full bg-white rounded-lg shadow-md"
+        ),
+        cls="p-6 bg-gray-50 rounded-lg shadow-lg", id='main-panel'
+    )
 
 async def buscar_agendas_por_assunto(req):
     form_data = await req.form()
@@ -512,16 +545,54 @@ async def template_editar_agenda(req, agenda_id: int):
 
     # Retornar o formulário com os dados atuais da agenda, incluindo o campo "assunto"
     return Titled("Editar Agenda",
-        Form(method="post", action=f"/atualizar_agenda/{agenda.id}")(
+        Form(
+            method="post",
+            action=f"/atualizar_agenda/{agenda.id}",
+            cls="space-y-6 bg-white p-6 rounded-lg shadow-lg"
+        )(
             Fieldset(
-                Label("Assunto: ", Input(name="assunto", type="text", value=str(agenda.assunto), required=True)),
-                Label("Data: ", Input(name="data", type="date", value=str(agenda.data), required=True)),
-                Label("Horário: ", Input(name="horario", type="time", value=str(agenda.horario), required=True))
+                Label(
+                    "Assunto:",
+                    Input(
+                        name="assunto",
+                        type="text",
+                        value=str(agenda.assunto),
+                        required=True,
+                        cls="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    ),
+                    cls="block text-gray-700 font-bold mb-2"
+                ),
+                Label(
+                    "Data:",
+                    Input(
+                        name="data",
+                        type="date",
+                        value=str(agenda.data),
+                        required=True,
+                        cls="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    ),
+                    cls="block text-gray-700 font-bold mb-2"
+                ),
+                Label(
+                    "Horário:",
+                    Input(
+                        name="horario",
+                        type="time",
+                        value=str(agenda.horario),
+                        required=True,
+                        cls="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    ),
+                    cls="block text-gray-700 font-bold mb-2"
+                ),
+                cls="space-y-4"
             ),
-            Button("Atualizar Agenda", type="submit")
+            Button(
+                "Atualizar Agenda",
+                type="submit",
+                cls="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg"
+            )
         )
     )
-
 
 async def gerar_relatorio_agendas(req):
     session = Session()
