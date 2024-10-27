@@ -64,18 +64,25 @@ async def buscar_consultores_cliente(req):
     session.close()
 
     if not consultores:
-        return Titled("Nenhum consultor encontrado.")
+        return Titled("Nenhum consultor encontrado.", cls="text-center text-gray-500 text-xl font-semibold py-4")
 
-    # Gerar a lista de consultores em HTML
+    # Gerar a lista de consultores em HTML com TailwindCSS
     consultores_html = Ul(*[
-        Li(f"{consultor.nome} - {consultor.atuacao}",
+        Li(
+            f"{consultor.nome} - {consultor.atuacao}",
             hx_get=f"/detalhes_consultor/{consultor.id}",
             hx_target="#detalhes-consultor",
-            hx_swap="outerHTML"
+            hx_swap="outerHTML",
+            cls="p-4 border-b border-gray-300 hover:bg-gray-100 cursor-pointer text-gray-800 font-medium"
         ) for consultor in consultores
-    ], id='detalhes-consultor')
+    ], id='detalhes-consultor', cls="bg-white shadow-md rounded-lg")
 
-    return Titled("Lista de Consultores", consultores_html)
+    return Div(
+        "Lista de Consultores",
+        consultores_html,
+        id='cards-section',
+        cls="max-w-2xl mx-auto my-8 p-6 bg-gray-50 rounded-lg shadow-lg"
+    )
 async def listar_historico_consultas_cliente(req):
     session = Session()
     cliente_email = req.state.user["sub"]

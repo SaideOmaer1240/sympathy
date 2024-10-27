@@ -1,5 +1,5 @@
 from fasthtml.common import Body, Div, Section, A, Button, I, Span, Ul, Li, H3, P, Script
-from app.views import contar_agendas_livres, contar_agendas_ocupadas, contar_clientes_atendidos, contar_pedidos_pendentes, obter_agendas_recentes
+from app.views import contar_agendas_livres, contar_agendas_ocupadas, contar_clientes_atendidos, contar_pedidos_pendentes, obter_agendas_recentes, consultor_info
 from auth.decorators.authorization import autenticar
 
 @autenticar('consultor')
@@ -10,6 +10,7 @@ async def dashboard(req):
     clientes_atendidos = await contar_clientes_atendidos(req)
     pedidos_consulta = await contar_pedidos_pendentes(req)
     agendas_recentes = await obter_agendas_recentes(req)
+    consultor = await consultor_info(req)
 
     return Body(
         Section(
@@ -60,6 +61,7 @@ async def dashboard(req):
             # Área Principal
             Div(
                 Div(
+                    P(consultor.nome, cls="text-base font-bold m-4 items-end" ),
                     A("Painel de Consultor", href="#", cls="text-2xl font-bold m-4 items-end"),
                     Button("☰", cls="text-white m-4 text-3xl md:hidden", onclick="toggleSidebar()", id="menu-toggle"),
                     cls="flex justify-between items-center w-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white",

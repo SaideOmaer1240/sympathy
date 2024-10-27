@@ -48,7 +48,7 @@ async def dashboard_cliente(req):
             # Área Principal do Dashboard do Cliente
             Div(
                 Div(
-                    P(cliente.nome, cls="text-sm font-bold m-4 items-end"),
+                    P(cliente.nome, cls="text-base font-bold m-4 items-end"),
                     A("Painel do Cliente", href="#", cls="text-2xl font-bold m-4 items-end"),
                     Button("☰", cls="text-white m-4 text-3xl md:hidden", onclick="toggleSidebar()", id="menu-toggle"),
                     cls="flex justify-between items-center w-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white",
@@ -65,10 +65,8 @@ async def dashboard_cliente(req):
                             Input(type="number", name="avaliacao_minima", placeholder="1 a 5", min="1", max="5", step="0.1", cls="w-full p-2 mb-4 border rounded"),
                             Label("Apenas Disponíveis:", cls="block text-gray-700 font-bold"),
                             Input(type="checkbox", name="apenas_disponiveis", cls="mb-4"),
-                            Button("Buscar", type="submit", cls="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"),
-                        ),
-                        method="POST", action="/buscar_consultores", cls="p-6 bg-white shadow rounded-lg"
-                    ),
+                            Button("Buscar", type="submit", cls="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded", hx_post="/buscar_consultores",  hx_target="#cards-section",  hx_trigger="click", hx_swap="outerHTML"   ),  method="POST", action="/buscar_consultores", cls="p-6 bg-white shadow rounded-lg"
+                    )),
                     Div(
                         consultores_disponiveis, cls="mt-4"
                     ), id='cards-section'

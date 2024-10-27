@@ -84,7 +84,12 @@ async def contar_pedidos_pendentes(req):
     session.close()
     return count
 
-
+# Dados do cliente
+async def consultor_info(req):
+    consultor_email = req.state.user["sub"]
+    session = Session()
+    consultor = session.query(Consultor).filter_by(email=consultor_email).first()
+    return consultor
 
 
 async def cadastrar_consultor(req):
