@@ -13,29 +13,33 @@ async def get_client_info(req):
 
 # Função para exibir os detalhes do consultor
 async def detalhes_consultor(req, consultor_id: int):
-        session = Session()
+    session = Session()
 
-        # Definir cookie com consultor_id para futuras interações
-        response = JSONResponse(content={"message": "Armazenamento realizado com sucesso!", "consultor ID": consultor_id})
-        response.set_cookie(key="consultor_id", value=str(consultor_id), httponly=True)  # Corrigido para garantir o valor correto
+    # Definir cookie com consultor_id para futuras interações
+    response = JSONResponse(content={"message": "Armazenamento realizado com sucesso!", "consultor ID": consultor_id})
+    response.set_cookie(key="consultor_id", value=str(consultor_id), httponly=True)
 
-        # Buscar consultor pelo ID
-        consultor = session.query(Consultor).filter(Consultor.id == consultor_id).first()
-        session.close()
+    # Buscar consultor pelo ID
+    consultor = session.query(Consultor).filter(Consultor.id == consultor_id).first()
+    session.close()
 
-        if not consultor:
-            return Titled("Erro", P("Consultor não encontrado."), status_code=404)
+    if not consultor:
+        return Titled("Erro", P("Consultor não encontrado.", cls="text-center text-red-500 text-lg"), status_code=404)
 
-        # Retornar os detalhes do consultor em HTML
-        detalhes_html = Div(
-            P(f"Nome: {consultor.nome}"),
-            P(f"Área de Atuação: {consultor.atuacao}"),
-            Button("Solicitar Consultoria", hx_post=f"/fazer_pedido_consulta/{consultor.id}", hx_trigger="click" )
-        )
+    # Retornar os detalhes do consultor em HTML com TailwindCSS
+    detalhes_html = Div(
+        P(f"Nome: {consultor.nome}", cls="text-lg font-semibold text-gray-800"),
+        P(f"Área de Atuação: {consultor.atuacao}", cls="text-md text-gray-600 mb-4"),
+        Button(
+            "Solicitar Consultoria",
+            hx_post=f"/fazer_pedido_consulta/{consultor.id}",
+            hx_trigger="click",
+            cls="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        ),
+        cls="p-6 bg-white rounded-lg shadow-md"
+    )
 
-        return Titled("Detalhes do Consultor", detalhes_html)
-
-
+    return Titled("Detalhes do Consultor", detalhes_html, cls="text-center text-2xl font-bold text-purple-700 mb-6")
 
 
 async def buscar_consultores_cliente(req):
@@ -78,7 +82,6 @@ async def buscar_consultores_cliente(req):
     ], id='detalhes-consultor', cls="bg-white shadow-md rounded-lg")
 
     return Div(
-        "Lista de Consultores",
         consultores_html,
         id='cards-section',
         cls="max-w-2xl mx-auto my-8 p-6 bg-gray-50 rounded-lg shadow-lg"
