@@ -1,41 +1,102 @@
-from fasthtml.common import Titled, Div, P, H2, Button
-from db.models import Cliente, Session
-from starlette.responses import RedirectResponse
+from fasthtml.common import Body, Div, Section, A, Button, I, Span, Ul, Li, H3, P, Form, Input, Label, Script
+from app.viewsClients import buscar_consultores_cliente, listar_historico_consultas_cliente, get_client_info
+from auth.decorators.authorization import autenticar
 
-async def dashbord(req):
-    email = req.state.user['sub']
+@autenticar('cliente')
+async def dashboard_cliente(req):
+    # Obtenção de dados
+    consultores_disponiveis = await buscar_consultores_cliente(req)   
+    historico_consultas = await listar_historico_consultas_cliente(req)
+    cliente = await get_client_info(req)
 
-    session = Session()
-    cliente = session.query(Cliente).filter(Cliente.email == email).first()
-
-    if not cliente:
-        return RedirectResponse(url='/client', status_code=307)
-    
-    session.close()
-
-    return Titled(
-        'Área de Cliente',
-        Div(
-            H2(f"Bem-vindo, {cliente.nome}!", cls="text-2xl font-bold text-center text-indigo-700 my-4"),
+    return Body(
+        Section(
+            # Sidebar para o cliente
             Div(
-                # Card de informações rápidas
                 Div(
-                    P("Suas Consultas Agendadas", cls="text-gray-500"),
-                    Button("Ver Consultas", cls="bg-blue-500 text-white px-4 py-2 rounded mt-2 hover:bg-blue-700"),
-                    cls="bg-white shadow rounded-lg p-6 m-4"
+                    A("Sympathy", href="#", cls="text-2xl font-bold m-4"),
+                    cls="flex justify-between items-center w-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white",
                 ),
-                Div(
-                    P("Avaliações Pendentes", cls="text-gray-500"),
-                    Button("Ver Avaliações", cls="bg-green-500 text-white px-4 py-2 rounded mt-2 hover:bg-green-700"),
-                    cls="bg-white shadow rounded-lg p-6 m-4"
+                Ul(
+                    Li(
+                        A(
+                            I(cls="fas fa-search mr-2"), 
+                            Span("Buscar Consultores", cls="menu-text"),
+                            hx_get="/buscar_consultores_cliente",
+                            hx_target="#main-content",
+                            hx_swap="innerHTML",
+                            cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                        )
+                    ),
+                    Li(
+                        A(
+                            I(cls="fas fa-history mr-2"), 
+                            Span("Histórico de Consultas", cls="menu-text"),
+                            hx_get="/listar_historico_consultas_cliente",
+                            hx_target="#main-content",
+                            hx_swap="innerHTML",
+                            cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                        )
+                    ),
+                    cls="space-y-4",
+                    id="sidebar-menu"
                 ),
-                Div(
-                    P("Notificações", cls="text-gray-500"),
-                    Button("Ver Notificações", cls="bg-yellow-500 text-white px-4 py-2 rounded mt-2 hover:bg-yellow-700"),
-                    cls="bg-white shadow rounded-lg p-6 m-4"
-                ),
-                cls="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+                cls="sidebar fixed top-0 md:relative md:top-auto left-0 w-64 h-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white transition-transform transform -translate-x-full md:translate-x-0",
+                id="sidebar"
             ),
-            cls="container mx-auto py-6"
-        )
+            
+            # Área Principal do Dashboard do Cliente
+            Div(
+                Div(
+                    P(cliente.nome, cls="text-sm font-bold m-4 items-end"),
+                    A("Painel do Cliente", href="#", cls="text-2xl font-bold m-4 items-end"),
+                    Button("☰", cls="text-white m-4 text-3xl md:hidden", onclick="toggleSidebar()", id="menu-toggle"),
+                    cls="flex justify-between items-center w-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white",
+                ),
+                
+                # Formulário de Pesquisa de Consultores
+                Div(
+                    H3("Buscar Consultores", cls="text-2xl ml-10 font-bold text-purple-700 mb-4"),
+                    Form(
+                        Div(
+                            Label("Nome ou Área de Atuação:", cls="block text-gray-700 font-bold"),
+                            Input(type="text", name="termo", placeholder="Digite o nome ou área de atuação", cls="w-full p-2 mb-4 border rounded"),
+                            Label("Avaliação Mínima:", cls="block text-gray-700 font-bold"),
+                            Input(type="number", name="avaliacao_minima", placeholder="1 a 5", min="1", max="5", step="0.1", cls="w-full p-2 mb-4 border rounded"),
+                            Label("Apenas Disponíveis:", cls="block text-gray-700 font-bold"),
+                            Input(type="checkbox", name="apenas_disponiveis", cls="mb-4"),
+                            Button("Buscar", type="submit", cls="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"),
+                        ),
+                        method="POST", action="/buscar_consultores", cls="p-6 bg-white shadow rounded-lg"
+                    ),
+                    Div(
+                        consultores_disponiveis, cls="mt-4"
+                    ), id='cards-section'
+                ),
+                
+                # Seção de Histórico de Consultas
+                Div(
+                    Button('▼ Histórico de Consultas', cls='text-2xl ml-10 font-bold text-purple-700 mb-4', id='toggle-button', onclick="toggleCardsSection()"),
+                    Div(
+                        *[
+                            Div(
+                                P(f"Data: {consulta['data']}", cls="text-gray-500"),
+                                P(f"Consultor: {consulta['consultor']}", cls="text-gray-700"),
+                                P(f"Status: {consulta['status']}", cls="text-gray-700"),
+                                cls="p-4 bg-white shadow-md rounded-lg mb-4"
+                            ) for consulta in historico_consultas
+                        ],
+                        cls="px-8 py-4 overflow-auto",
+                        style="height: 20rem",
+                        id="agenda-list"
+                    ),
+                ),
+                cls="w-full main bg-gray-100",
+                id="main"
+            ),
+            cls="flex fixed flex-col md:h-full md:flex-row w-full top-0"
+        ),
+        Script(src='static/js/toggle/agendasRecents.js'),
+        Script(src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"),
+        Script(src='static/js/toggle/toggleSidebar.js')
     )

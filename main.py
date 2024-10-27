@@ -5,9 +5,9 @@ from app.views import atualizar_agenda, cadastrar_cliente, cadastrar_consultor, 
 from app.view_pedidos import aceitar_pedido, listar_pedidos, recusar_pedido
 from app.templates.forms import template_agenda, template_cliente,template_consultor, template_login, template_buscar_agenda, template_buscar_consultores
 from components.hero.template import HeroSection, CardsSection, Navbar
-from app.viewsClients import buscar_consultores, detalhes_consultor, fazer_pedido_consulta
+from app.viewsClients import fazer_pedido_consulta, buscar_consultores_cliente, detalhes_consultor
 from components.dashboard.consultores.template import dashboard
-from components.dashboard.clientes.template import dashbord as area_client
+from components.dashboard.clientes.template import dashboard_cliente as area_client
 from components.head.template import head
 from components.login import conectar
 from components.exceptions.message import notice
@@ -181,7 +181,7 @@ async def rota_relatorio_agendas(req):
 @rt("/buscar_consultores", methods=["POST"])
 @autenticar(role='cliente')  # Apenas clientes podem buscar consultores
 async def rota_buscar_consultores(req):
-    return await buscar_consultores(req)
+    return await buscar_consultores_cliente(req)
 
 # Rota HTMX para ver detalhes de consultor
 @rt("/detalhes_consultor/{consultor_id}", methods=["GET"])
