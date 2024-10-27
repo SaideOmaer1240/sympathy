@@ -18,6 +18,7 @@ class Consultor(Bases):
     senha = Column(String, nullable=False)
     avaliacoes = relationship("Avaliacao", back_populates="consultor")
     pedidos = relationship("Pedido", back_populates="consultor")
+    agendas = relationship("Agenda", back_populates="consultor")  # Adicionada relação com Agenda
 
     def __repr__(self):
         return f"<Consultor(nome={self.nome}, email={self.email})>"
@@ -55,13 +56,15 @@ class Agenda(Bases):
     
     id = Column(Integer, primary_key=True, index=True)
     pedido_id = Column(Integer, ForeignKey('Pedido.id'), nullable=False)
+    consultor_email = Column(String, ForeignKey('Consultor.email'), nullable=True)
     assunto = Column(String, nullable=False)  # Nome do assunto da consultoria
     data = Column(Date, nullable=False)
     horario = Column(Time, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))  # Data de criação
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))  # Data de atualização
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)  # Data de criação com index
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), index=True)  # Data de atualização com index
 
     pedido = relationship("Pedido", back_populates="agenda")
+    consultor = relationship("Consultor", back_populates="agendas")  # Relacionamento com Consultor
 
     def __repr__(self):
         return f"<Agenda(assunto={self.assunto}, data={self.data}, horario={self.horario})>"

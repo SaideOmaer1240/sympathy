@@ -46,10 +46,14 @@ async def obter_agendas_recentes(req):
 
 async def contar_agendas_ocupadas(req):
     session = Session()
-    consultor_email = req.state.user["sub"]  # Extrai o e-mail do consultor autenticado
-
-    # Conta as agendas que têm um pedido associado (ou seja, estão ocupadas)
-    count = session.query(Agenda).filter(Agenda.pedido_id.isnot(None)).count()
+    consultor_email = req.state.user["sub"]  
+    
+    # Conta as agendas ocupadas associadas ao consultor autenticado
+    count = session.query(Agenda).filter(
+        Agenda.pedido_id.isnot(None),
+        Agenda.consultor_email == consultor_email
+    ).count()
+    
     session.close()
     return count
 

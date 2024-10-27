@@ -27,6 +27,7 @@ async def aceitar_pedido(req, pedido_id: int):
         # Criar uma agenda para esse pedido
         nova_agenda = Agenda(
             pedido_id=pedido.id, 
+            consultor_email=consultor.email,
             assunto=f"Consulta com {pedido.cliente.nome}",  
             data=datetime.now(timezone.utc).date(),  
             horario=datetime.now(timezone.utc).time(),  
