@@ -24,10 +24,10 @@ async def dashboard(req):
                     Li(
                         A(
                             I(cls="fas fa-calendar-plus mr-2"), 
-                            Span("Criar Agenda", cls="menu-text"),
-                            hx_get="/form_criar_agenda",
-                            hx_target="#main-content",
-                            hx_swap="innerHTML",
+                            Span("Agendas", cls="menu-text"),
+                            hx_get="/minhas_agendas",
+                            hx_target="#main-panel",
+                            hx_swap="outerHTML",
                             cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
                         )
                     ),
@@ -95,7 +95,7 @@ async def dashboard(req):
                 
                 # Seção de Agendas Recentes com botão de alternância
                 Div(
-                    Button('▼ Agendas Recentes', cls='text-2xl ml-10 font-bold text-purple-700 mb-4', id='toggle-button', onclick="toggleCardsSection()"),
+                    Button('▼ Agendas Recentes', cls='text-2xl ml-10 font-bold text-purple-700 mb-4', id='toggle-button', onclick="toggleCardsSection('Agendas Recentes')"),
                     Div(
                         *[
                             Div(
@@ -109,7 +109,7 @@ async def dashboard(req):
                         cls="px-8 py-4 overflow-auto",
                         style="height: 20rem",
                         id="agenda-list"
-                    )
+                    ), id='main-panel'
                 ),
                 cls="w-full main bg-gray-100",
                 id="main"

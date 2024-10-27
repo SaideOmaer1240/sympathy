@@ -1,4 +1,4 @@
-from fasthtml.common import Titled, Tr, Td, P, Button, Form, Table, Th, Thead, Tbody, Fieldset, Input, Label, RedirectResponse
+from fasthtml.common import Titled, Tr, Td, P, Button, Form, Table, Th, Thead, Tbody, Fieldset, Input, Label, Div
 from sqlalchemy.exc import IntegrityError  
 from starlette.responses import JSONResponse, RedirectResponse
 from sqlalchemy.exc import IntegrityError
@@ -257,7 +257,7 @@ async def minhas_agendas(req):
 
     session.close()
 
-    return Titled("Minhas Agendas", 
+    return Div( Button('▼ Agendas', cls='text-2xl ml-10 font-bold text-purple-700 mb-4', id='toggle-button', onclick="toggleCardsSection('Agendas')"),  
             Table(
                 Thead(
                     Tr(

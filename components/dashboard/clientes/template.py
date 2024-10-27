@@ -74,7 +74,7 @@ async def dashboard_cliente(req):
                 
                 # Seção de Histórico de Consultas
                 Div(
-                    Button('▼ Histórico de Consultas', cls='text-2xl ml-10 font-bold text-purple-700 mb-4', id='toggle-button', onclick="toggleCardsSection()"),
+                    Button('▼ Histórico de Consultas', cls='text-2xl ml-10 font-bold text-purple-700 mb-4', id='toggle-button', onclick="toggleCardsSection('Histórico de Consultas')"),
                     Div(
                         *[
                             Div(
