@@ -275,589 +275,743 @@
         Bases.metadata.create_all(engine)
 
 /home/saide/sympathy/app/views.py
-    from fasthtml.common import Titled, Tr, Td, P, Button, Form, Table, Th, Thead, Tbody, Fieldset, Input, Label, RedirectResponse
-    from sqlalchemy.exc import IntegrityError  
-    from starlette.responses import JSONResponse, RedirectResponse
-    from sqlalchemy.exc import IntegrityError
-    from db.models import Agenda, Cliente, Consultor, Pedido, Session
-    from auth.utils import gerar_token_jwt, hash_senha, verificar_senha 
-    from services.notice import enviar_email_notificacao
-    from datetime import datetime
-    from sqlalchemy import func   
-    
-
-    async def obter_agendas_recentes(req):
-        session = Session()
-        consultor_email = req.state.user["sub"]  # Extrai o e-mail do consultor autenticado
-
-        # Identifica o consultor logado
-        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
-        if not consultor:
-            session.close()
-            return []
-        print(consultor.nome)
-
-        # Busca as agendas associadas ao consultor, ordenadas pela data de criação, limitando a um número específico, como 5
-        agendas = (
-            session.query(Agenda)
-            .join(Pedido, Agenda.pedido_id == Pedido.id)
-            .filter(Pedido.consultor_id == consultor.id)
-            .order_by(Agenda.data.desc())
-            .limit(5)  # Limita para exibir apenas as 5 agendas mais recentes
-            .all()
-        )
-
-        # Formata os dados da agenda para serem usados no dashboard
-        agenda_list = [
-            {
-                "id": agenda.id,
-                "data": agenda.data.strftime("%d/%m/%Y"),
-                "horario": agenda.horario.strftime("%H:%M"),
-                "cliente": agenda.pedido.cliente.nome if agenda.pedido else "N/A"
-            }
-            for agenda in agendas
-        ]
-
-        session.close()
-        return agenda_list
-
-    async def contar_agendas_ocupadas(req):
-        session = Session()
-        consultor_email = req.state.user["sub"]  
+        from fasthtml.common import Titled, Tr, Td, P, Button, Form, Table, Th, Thead, Tbody, Fieldset, Input, Label, Div
+        from sqlalchemy.exc import IntegrityError  
+        from starlette.responses import JSONResponse, RedirectResponse
+        from sqlalchemy.exc import IntegrityError
+        from db.models import Agenda, Cliente, Consultor, Pedido, Session
+        from auth.utils import gerar_token_jwt, hash_senha, verificar_senha 
+        from services.notice import enviar_email_notificacao
+        from datetime import datetime
+        from sqlalchemy import func   
         
-        # Conta as agendas ocupadas associadas ao consultor autenticado
-        count = session.query(Agenda).filter(
-            Agenda.pedido_id.isnot(None),
-            Agenda.consultor_email == consultor_email
-        ).count()
-        
-        session.close()
-        return count
 
-    async def contar_agendas_livres(req):
-        session = Session()
-        consultor_email = req.state.user["sub"]
+        async def obter_agendas_recentes(req):
+            session = Session()
+            consultor_email = req.state.user["sub"]  # Extrai o e-mail do consultor autenticado
 
-        # Conta as agendas que não têm um pedido associado (ou seja, estão livres)
-        count = session.query(Agenda).filter(Agenda.pedido_id.is_(None)).count()
-        session.close()
-        return count
-
-    async def contar_clientes_atendidos(req):
-        session = Session()
-        consultor_email = req.state.user["sub"]
-
-        # Conta os clientes atendidos por este consultor
-        count = session.query(Pedido).filter(Pedido.status == "atendido", Pedido.consultor.has(email=consultor_email)).count()
-        session.close()
-        return count
-
-    async def contar_pedidos_pendentes(req):
-        session = Session()
-        consultor_email = req.state.user["sub"]
-
-        # Conta os pedidos de consulta que estão pendentes para este consultor
-        count = session.query(Pedido).filter(Pedido.consultor.has(email=consultor_email), Pedido.status == "pendente").count()
-        session.close()
-        return count
-
-
-
-
-    async def cadastrar_consultor(req):
-        form_data = await req.form()
-        
-        nome = form_data.get("nome")
-        email = form_data.get("email")
-        atuacao = form_data.get("atuacao")
-        senha = form_data.get("senha")
-
-        if not nome or not email or not atuacao or not senha:
-            return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
-
-        senha_hashed = hash_senha(senha)
-
-        session = Session()
-        consultor = Consultor(nome=nome, email=email, atuacao=atuacao, senha=senha_hashed)
-        
-        
-        try:
-            session.add(consultor)
-            session.commit()
-            return RedirectResponse(url='/consultant', status_code=307)
-        except IntegrityError:
-            session.rollback()
-            return RedirectResponse(url='/exist', status_code=307)
-        finally:
-            session.close()
-
-
-    async def cadastrar_cliente(req):
-        form_data = await req.form()
-        
-        nome = form_data.get("nome")
-        email = form_data.get("email")
-        senha = form_data.get("senha")
-
-        if not nome or not email or not senha:
-            return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
-
-        senha_hashed = hash_senha(senha)
-
-        session = Session()
-        cliente = Cliente(nome=nome, email=email, senha=senha_hashed)
-        
-        try:
-            session.add(cliente)
-            session.commit()
-            return RedirectResponse(url='/client', status_code=307)
-            
-        except IntegrityError:
-            session.rollback()
-            return RedirectResponse(url='/exist', status_code=307)
-            session.close()
-
-
-    async def login(req):
-        form_data = await req.form()
-        email = form_data.get("email")
-        senha = form_data.get("senha")
-
-        if not email or not senha:
-            return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
-
-        session = Session()
-
-        # Verifica se o usuário é consultor
-        consultor = session.query(Consultor).filter(Consultor.email == email).first()
-        if consultor and verificar_senha(senha, consultor.senha):
-            token = gerar_token_jwt(email, "consultor")
-            
-            res = RedirectResponse(url='/connected_as_a_consultant', status_code=303)
-            res.set_cookie(key="access_token", value=token, httponly=True) 
-            session.close()
-            return res
-
-        # Verifica se o usuário é cliente
-        cliente = session.query(Cliente).filter(Cliente.email == email).first()
-        if cliente and verificar_senha(senha, cliente.senha):
-            token = gerar_token_jwt(email, "cliente")
-            response = RedirectResponse(url='/dashboard_cliente', status_code=307)
-            
-            response.set_cookie(key="access_token", value=token, httponly=True)
-            session.close()
-            return response
-                        
-        session.close()
-        return JSONResponse(content={"message": "Credenciais inválidas."}, status_code=401)
-
-
-    async def criar_agenda(req):
-        form_data = await req.form()
-        assunto = form_data.get("assunto")
-        data = form_data.get("data")
-        horario = form_data.get("horario")
-
-        if not assunto or not data or not horario:
-            return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
-
-        session = Session()
-        consultor_email = req.state.user["sub"]  # Extrair email do consultor do token JWT
-
-        # Buscar o consultor
-        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
-        
-        if not consultor:
-            session.close()
-            return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
-
-        agenda = Agenda(
-            pedido_id=None,  # Pode ser associado futuramente
-            assunto=assunto,
-            data=data,
-            horario=horario
-        )
-        session.add(agenda)
-        
-        try:
-            session.commit()
-
-            # Enviar notificação para o consultor
-            mensagem = f"Olá {consultor.nome},\n\nUma nova agenda foi criada:\nAssunto: {assunto}\nData: {data}\nHorário: {horario}\n"
-            enviar_email_notificacao(consultor.email, "Nova Agenda Criada", mensagem)
-
-            return JSONResponse(content={"message": "Agenda criada com sucesso!"}, status_code=201)
-        except Exception as e:
-            session.rollback()
-            return JSONResponse(content={"message": "Erro ao criar agenda.", "error": str(e)}, status_code=500)
-        finally:
-            session.close()
-
-    async def minhas_agendas(req):
-        session = Session()
-        consultor_email = req.state.user["sub"]  # Email do consultor extraído do token
-
-        # Buscar o consultor logado
-        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
-        if not consultor:
-            session.close()
-            return Titled("Erro", 
-                    P("Consultor não encontrado.")
-                ) 
-
-        # Buscar agendas do consultor
-        agendas = session.query(Agenda).filter(Agenda.pedido.has(consultor_id=consultor.id)).all()
-
-        if not agendas:
-            session.close()
-            return  Titled("Minhas Agendas", 
-                    P("Nenhuma agenda encontrada.")
-                )
-            
-        # Gerar tabela de agendas, incluindo o novo campo "assunto"
-        agenda_rows = [
-            Tr(
-                Td(a.assunto),  # Mostrando o assunto da agenda
-                Td(str(a.data)),
-                Td(str(a.horario)),
-                Td(Button("Editar", onclick=f"window.location.href='/form_editar_agenda/{a.id}'")),
-                Td(Form(method="post", action=f"/eliminar_agenda/{a.id}")(
-                    Button("Eliminar", type="submit", style="background-color: red; color: white;")
-                ))
-            ) for a in agendas
-        ]
-
-        session.close()
-
-        return Titled("Minhas Agendas", 
-                Table(
-                    Thead(
-                        Tr(
-                            Th("Assunto"),
-                            Th("Data"),
-                            Th("Horário"),
-                            Th("Editar"),
-                            Th("Eliminar")
-                        )
-                    ),
-                    Tbody(*agenda_rows)
-                )
-            )
-
-    async def buscar_agendas_por_assunto(req):
-        form_data = await req.form()
-        assunto = form_data.get("assunto")
-        
-        if not assunto:
-            return JSONResponse(content={"message": "Assunto é obrigatório."}, status_code=400)
-
-        session = Session()
-        consultor_email = req.state.user["sub"]  # Pega o email do consultor através do token JWT
-        
-        # Buscar consultor logado
-        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
-        if not consultor:
-            session.close()
-            return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
-
-        # Filtrar agendas do consultor pelo assunto
-        agendas = session.query(Agenda).filter(Agenda.pedido.has(consultor_id=consultor.id), Agenda.assunto.ilike(f'%{assunto}%')).all()
-
-        if not agendas:
-            session.close()
-            return JSONResponse(content={"message": "Nenhuma agenda encontrada para o assunto informado."}, status_code=404)
-
-        # Retornar os detalhes das agendas encontradas
-        agenda_list = [
-            {
-                "id": agenda.id,
-                "assunto": agenda.assunto,
-                "data": str(agenda.data),
-                "horario": str(agenda.horario)
-            } for agenda in agendas
-        ]
-        
-        session.close()
-        return JSONResponse(content={"agendas": agenda_list}, status_code=200)
-    
-
-    async def duplicar_agenda(req, agenda_id: int):
-        session = Session()
-        consultor_email = req.state.user["sub"]  # Obtém o email do consultor a partir do token JWT
-
-        try:
-            # Buscar o consultor logado
+            # Identifica o consultor logado
             consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
             if not consultor:
-                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+                session.close()
+                return []
+            print(consultor.nome)
 
-            # Buscar a agenda que o consultor deseja duplicar
-            agenda_original = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
-            if not agenda_original:
-                return JSONResponse(content={"message": "Agenda não encontrada ou não pertence ao consultor."}, status_code=404)
-
-            # Criar uma nova instância da Agenda duplicando os detalhes da original
-            nova_agenda = Agenda(
-                pedido_id=agenda_original.pedido_id,  # Mantém o pedido original ou pode ser None
-                assunto=agenda_original.assunto,
-                data=agenda_original.data,
-                horario=agenda_original.horario
+            # Busca as agendas associadas ao consultor, ordenadas pela data de criação, limitando a um número específico, como 5
+            agendas = (
+                session.query(Agenda)
+                .join(Pedido, Agenda.pedido_id == Pedido.id)
+                .filter(Pedido.consultor_id == consultor.id)
+                .order_by(Agenda.data.desc())
+                .limit(5)  # Limita para exibir apenas as 5 agendas mais recentes
+                .all()
             )
 
-            session.add(nova_agenda)
-            session.commit()
-
-            return JSONResponse(content={"message": "Agenda duplicada com sucesso!", "nova_agenda_id": nova_agenda.id}, status_code=201)
-
-        except Exception as e:
-            session.rollback()
-            return JSONResponse(content={"message": "Erro ao duplicar a agenda.", "error": str(e)}, status_code=500)
-
-        finally:
-            session.close()
-
-    
-    async def listar_agendas_concluidas(req):
-        session = Session()
-        consultor_email = req.state.user["sub"]  # Extrai o email do consultor do token JWT
-
-        try:
-            # Buscar o consultor logado
-            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
-            if not consultor:
-                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
-
-            # Buscar todas as agendas do consultor que já passaram da data atual
-            agora = datetime.now().date()
-            agendas_concluidas = session.query(Agenda).filter(
-                Agenda.pedido.has(consultor_id=consultor.id),
-                Agenda.data < agora
-            ).all()
-
-            if not agendas_concluidas:
-                return JSONResponse(content={"message": "Nenhuma agenda concluída encontrada."}, status_code=404)
-
-            # Listar as agendas concluídas
+            # Formata os dados da agenda para serem usados no dashboard
             agenda_list = [
                 {
                     "id": agenda.id,
-                    "assunto": agenda.assunto,
-                    "data": str(agenda.data),
-                    "horario": str(agenda.horario)
-                } for agenda in agendas_concluidas
+                    "data": agenda.data.strftime("%d/%m/%Y"),
+                    "horario": agenda.horario.strftime("%H:%M"),
+                    "cliente": agenda.pedido.cliente.nome if agenda.pedido else "N/A"
+                }
+                for agenda in agendas
             ]
 
-            return JSONResponse(content={"agendas_concluidas": agenda_list}, status_code=200)
-
-        except Exception as e:
-            return JSONResponse(content={"message": "Erro ao buscar agendas concluídas.", "error": str(e)}, status_code=500)
-
-        finally:
             session.close()
+            return agenda_list
+
+        async def contar_agendas_ocupadas(req):
+            session = Session()
+            consultor_email = req.state.user["sub"]  
+            
+            # Conta as agendas ocupadas associadas ao consultor autenticado
+            count = session.query(Agenda).filter(
+                Agenda.pedido_id.isnot(None),
+                Agenda.consultor_email == consultor_email
+            ).count()
+            
+            session.close()
+            return count
+
+        async def contar_agendas_livres(req):
+            session = Session()
+            consultor_email = req.state.user["sub"]
+
+            # Conta as agendas que não têm um pedido associado (ou seja, estão livres)
+            count = session.query(Agenda).filter(Agenda.pedido_id.is_(None)).count()
+            session.close()
+            return count
+
+        async def contar_clientes_atendidos(req):
+            session = Session()
+            consultor_email = req.state.user["sub"]
+
+            # Conta os clientes atendidos por este consultor
+            count = session.query(Pedido).filter(Pedido.status == "atendido", Pedido.consultor.has(email=consultor_email)).count()
+            session.close()
+            return count
+
+        async def contar_pedidos_pendentes(req):
+            session = Session()
+            consultor_email = req.state.user["sub"]
+
+            # Conta os pedidos de consulta que estão pendentes para este consultor
+            count = session.query(Pedido).filter(Pedido.consultor.has(email=consultor_email), Pedido.status == "pendente").count()
+            session.close()
+            return count
+
+        # Dados do cliente
+        async def consultor_info(req):
+            consultor_email = req.state.user["sub"]
+            session = Session()
+            consultor = session.query(Consultor).filter_by(email=consultor_email).first()
+            return consultor
 
 
-    async def eliminar_agenda(req, agenda_id: int):
-        session = Session()
-        consultor_email = req.state.user["sub"]  # Email do consultor extraído do token JWT
+        async def cadastrar_consultor(req):
+            form_data = await req.form()
+            
+            nome = form_data.get("nome")
+            email = form_data.get("email")
+            atuacao = form_data.get("atuacao")
+            senha = form_data.get("senha")
 
-        try:
-            # Buscar o consultor pelo email contido no payload do token JWT
+            if not nome or not email or not atuacao or not senha:
+                return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
+
+            senha_hashed = hash_senha(senha)
+
+            session = Session()
+            consultor = Consultor(nome=nome, email=email, atuacao=atuacao, senha=senha_hashed)
+            
+            
+            try:
+                session.add(consultor)
+                session.commit()
+                return RedirectResponse(url='/consultant', status_code=307)
+            except IntegrityError:
+                session.rollback()
+                return RedirectResponse(url='/exist', status_code=307)
+            finally:
+                session.close()
+
+
+        async def cadastrar_cliente(req):
+            form_data = await req.form()
+            
+            nome = form_data.get("nome")
+            email = form_data.get("email")
+            senha = form_data.get("senha")
+
+            if not nome or not email or not senha:
+                return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
+
+            senha_hashed = hash_senha(senha)
+
+            session = Session()
+            cliente = Cliente(nome=nome, email=email, senha=senha_hashed)
+            
+            try:
+                session.add(cliente)
+                session.commit()
+                return RedirectResponse(url='/client', status_code=307)
+                
+            except IntegrityError:
+                session.rollback()
+                return RedirectResponse(url='/exist', status_code=307)
+                session.close()
+
+
+        async def login(req):
+            form_data = await req.form()
+            email = form_data.get("email")
+            senha = form_data.get("senha")
+
+            if not email or not senha:
+                return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
+
+            session = Session()
+
+            # Verifica se o usuário é consultor
+            consultor = session.query(Consultor).filter(Consultor.email == email).first()
+            if consultor and verificar_senha(senha, consultor.senha):
+                token = gerar_token_jwt(email, "consultor")
+                
+                res = RedirectResponse(url='/connected_as_a_consultant', status_code=303)
+                res.set_cookie(key="access_token", value=token, httponly=True) 
+                session.close()
+                return res
+
+            # Verifica se o usuário é cliente
+            cliente = session.query(Cliente).filter(Cliente.email == email).first()
+            if cliente and verificar_senha(senha, cliente.senha):
+                token = gerar_token_jwt(email, "cliente")
+                response = RedirectResponse(url='/dashboard_cliente', status_code=307)
+                
+                response.set_cookie(key="access_token", value=token, httponly=True)
+                session.close()
+                return response
+                            
+            session.close()
+            return JSONResponse(content={"message": "Credenciais inválidas."}, status_code=401)
+
+
+        async def criar_agenda(req):
+            form_data = await req.form()
+            assunto = form_data.get("assunto")
+            data = form_data.get("data")
+            horario = form_data.get("horario")
+
+            if not assunto or not data or not horario:
+                return JSONResponse(content={"message": "Todos os campos são obrigatórios."}, status_code=400)
+
+            session = Session()
+            consultor_email = req.state.user["sub"]  # Extrair email do consultor do token JWT
+
+            # Buscar o consultor
             consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
             
             if not consultor:
                 session.close()
                 return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
 
-            # Buscar a agenda pelo ID e verificar se pertence ao consultor via Pedido
-            agenda = session.query(Agenda).filter(Agenda.id == agenda_id).first()
-
-            if not agenda or agenda.pedido.consultor_id != consultor.id:
-                return JSONResponse(content={"message": "Agenda não encontrada ou não pertence ao consultor."}, status_code=404)
-            
-            # Eliminar a agenda
-            session.delete(agenda)
-            session.commit()
-
-            return JSONResponse(content={"message": "Agenda eliminada com sucesso!"}, status_code=200)
-        
-        except Exception as e:
-            session.rollback()
-            return JSONResponse(content={"message": "Erro ao eliminar a agenda.", "error": str(e)}, status_code=500)
-        
-        finally:
-            session.close()
-
-    async def form_editar_agenda(req, agenda_id: int):
-        session = Session()
-        consultor_email = req.state.user["sub"]
-
-        # Buscar o consultor logado pelo email contido no token
-        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
-
-        if not consultor:
-            session.close()
-            return Titled("Erro", P("Consultor não encontrado."))
-
-        # Buscar a agenda pelo ID e verificar se pertence ao consultor logado
-        agenda = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
-
-        if not agenda:
-            session.close()
-            return Titled("Erro", P("Agenda não encontrada."))
-
-        # Retornar o formulário com os dados atuais da agenda, incluindo o campo "assunto"
-        session.close()
-
-        return Titled("Editar Agenda",
-            Form(method="post", action=f"/atualizar_agenda/{agenda.id}")(
-                Fieldset(
-                    Label("Assunto: ", Input(name="assunto", type="text", value=str(agenda.assunto), required=True)),
-                    Label("Data: ", Input(name="data", type="date", value=str(agenda.data), required=True)),
-                    Label("Horário: ", Input(name="horario", type="time", value=str(agenda.horario), required=True))
-                ),
-                Button("Atualizar Agenda", type="submit")
+            agenda = Agenda(
+                pedido_id=None,  # Pode ser associado futuramente
+                assunto=assunto,
+                data=data,
+                horario=horario
             )
-        )
-
-    async def atualizar_agenda(req, agenda_id: int):
-        form_data = await req.form()
-        novo_assunto = form_data.get("assunto")
-        nova_data = form_data.get("data")
-        novo_horario = form_data.get("horario")
-
-        if not novo_assunto or not nova_data or not novo_horario:
-            return JSONResponse(content={"message": "Assunto, data e horário são obrigatórios."}, status_code=400)
-
-        session = Session()
-        consultor_email = req.state.user["sub"]
-
-        try:
-            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+            session.add(agenda)
             
-            if not consultor:
-                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+            try:
+                session.commit()
 
-            agenda = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
-            
-            if not agenda:
-                return JSONResponse(content={"message": "Agenda não encontrada ou não pertence ao consultor."}, status_code=404)
+                # Enviar notificação para o consultor
+                mensagem = f"Olá {consultor.nome},\n\nUma nova agenda foi criada:\nAssunto: {assunto}\nData: {data}\nHorário: {horario}\n"
+                enviar_email_notificacao(consultor.email, "Nova Agenda Criada", mensagem)
 
-            agenda.assunto = novo_assunto
-            agenda.data = nova_data
-            agenda.horario = novo_horario 
+                return JSONResponse(content={"message": "Agenda criada com sucesso!"}, status_code=201)
+            except Exception as e:
+                session.rollback()
+                return JSONResponse(content={"message": "Erro ao criar agenda.", "error": str(e)}, status_code=500)
+            finally:
+                session.close()
 
-            session.commit()
+        async def minhas_agendas(req):
+            session = Session()
+            consultor_email = req.state.user["sub"]  # Email do consultor extraído do token
 
-            # Enviar notificação de atualização
-            mensagem = f"Olá {consultor.nome},\n\nSua agenda foi atualizada:\nNovo Assunto: {novo_assunto}\nNova Data: {nova_data}\nNovo Horário: {novo_horario}\n"
-            enviar_email_notificacao(consultor.email, "Agenda Atualizada", mensagem)
-
-            return JSONResponse(content={"message": "Agenda atualizada com sucesso!"}, status_code=200)
-        
-        except Exception as e:
-            session.rollback()
-            return JSONResponse(content={"message": "Erro ao atualizar a agenda.", "error": str(e)}, status_code=500)
-        
-        finally:
-            session.close()
-
-    async def template_editar_agenda(req, agenda_id: int):
-        session = Session()
-        consultor_email = req.state.user["sub"]
-
-        # Buscar o consultor logado pelo email contido no token
-        consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
-
-        if not consultor:
-            session.close()
-            return Titled("Erro", P("Consultor não encontrado."))
-
-        # Buscar a agenda pelo ID e verificar se pertence ao consultor logado
-        agenda = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
-
-        if not agenda:
-            session.close()
-            return Titled("Erro", P("Agenda não encontrada."))
-
-        # Fechar a sessão
-        session.close()
-
-        # Retornar o formulário com os dados atuais da agenda, incluindo o campo "assunto"
-        return Titled("Editar Agenda",
-            Form(method="post", action=f"/atualizar_agenda/{agenda.id}")(
-                Fieldset(
-                    Label("Assunto: ", Input(name="assunto", type="text", value=str(agenda.assunto), required=True)),
-                    Label("Data: ", Input(name="data", type="date", value=str(agenda.data), required=True)),
-                    Label("Horário: ", Input(name="horario", type="time", value=str(agenda.horario), required=True))
-                ),
-                Button("Atualizar Agenda", type="submit")
-            )
-        )
-
-
-    async def gerar_relatorio_agendas(req):
-        session = Session()
-        consultor_email = req.state.user["sub"]  # Obtém o email do consultor do token JWT
-
-        try:
             # Buscar o consultor logado
             consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
             if not consultor:
-                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+                session.close()
+                return Titled(
+                    "Erro",
+                    P("Consultor não encontrado.", cls="text-center text-red-500 text-lg")
+                )
 
-            # Contar o número de agendas por assunto
-            relatorio_por_assunto = session.query(
-                Agenda.assunto,
-                func.count(Agenda.id).label("total")
-            ).filter(Agenda.pedido.has(consultor_id=consultor.id)).group_by(Agenda.assunto).all()
+            # Buscar agendas do consultor
+            agendas = session.query(Agenda).filter(Agenda.pedido.has(consultor_id=consultor.id)).all()
 
-            # Contar o número de agendas por data
-            relatorio_por_data = session.query(
-                Agenda.data,
-                func.count(Agenda.id).label("total")
-            ).filter(Agenda.pedido.has(consultor_id=consultor.id)).group_by(Agenda.data).all()
+            if not agendas:
+                session.close()
+                return Titled(
+                    "Minhas Agendas",
+                    P("Nenhuma agenda encontrada.", cls="text-center text-gray-500 text-lg")
+                )
 
-            # Construir o relatório
-            relatorio = {
-                "por_assunto": [
-                    {"assunto": r.assunto, "total": r.total} for r in relatorio_por_assunto
-                ],
-                "por_data": [
-                    {"data": str(r.data), "total": r.total} for r in relatorio_por_data
-                ]
-            }
+            # Gerar tabela de agendas, incluindo o campo "assunto"
+            agenda_rows = [
+                Tr(
+                    Td(a.assunto, cls="p-4 text-gray-700"),
+                    Td(str(a.data), cls="p-4 text-gray-600"),
+                    Td(str(a.horario), cls="p-4 text-gray-600"),
+                    Td(
+                        Button(
+                            "Editar",
+                            hx_get=f"/form_editar_agenda/{a.id}",  # Utiliza HTMX para carregar o formulário de edição
+                            hx_target="#main-panel",  # ID do elemento de destino onde o formulário de edição será carregado
+                            hx_swap="outerHTML",
+                            cls="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded"
+                        ),
+                        cls="text-center"
+                    ),
+                    Td(
+                        Form(
+                            method="post",
+                            action=f"/eliminar_agenda/{a.id}",
+                            hx_post=f"/eliminar_agenda/{a.id}",  # Configuração HTMX para excluir o item
+                            hx_target="#main-panel",  # ID do elemento onde a lista de agendas será atualizada
+                            hx_swap="outerHTML"
+                        )(
+                            Button(
+                                "Eliminar",
+                                type="submit",
+                                cls="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded"
+                            )
+                        ),
+                        cls="text-center"
+                    )
+                ) for a in agendas
+            ]
 
-            return JSONResponse(content={"relatorio": relatorio}, status_code=200)
 
-        except Exception as e:
-            return JSONResponse(content={"message": "Erro ao gerar relatório de agendas.", "error": str(e)}, status_code=500)
-
-        finally:
             session.close()
 
-/home/saide/sympathy/components/dashboard/clientes/template.py
-    from fasthtml.common import Titled, Div, P
-    from db.models import Session, Cliente
-    from starlette.responses import RedirectResponse
-
-    async def dashbord(req):
-        # Logica
-        email = req.state.user['sub']
-
-        # Buscar cliente logado
-        session = Session()
-        cliente = session.query(Cliente).filter(Cliente.email == email).first()
-
-        if not cliente:
-            return RedirectResponse(url='/client', status_code=307)
-        session.close()
-
-        # Retornar resposta
-        return Titled(
-            'Area de cliente',
-            Div(
-                P(f"Bem-vindo, Cliente {cliente.nome}!")
+            return Div(
+                Button(
+                    '▼ Agendas',
+                    cls='text-2xl ml-10 font-bold text-purple-700 mb-4',
+                    id='toggle-button',
+                    onclick="toggleCardsSection('Agendas')"
+                ),
+                Table(
+                    Thead(
+                        Tr(
+                            Th("Assunto", cls="p-4 border-b-2 border-gray-200 text-left text-gray-800"),
+                            Th("Data", cls="p-4 border-b-2 border-gray-200 text-left text-gray-800"),
+                            Th("Horário", cls="p-4 border-b-2 border-gray-200 text-left text-gray-800"),
+                            Th("Editar", cls="p-4 border-b-2 border-gray-200 text-center text-gray-800"),
+                            Th("Eliminar", cls="p-4 border-b-2 border-gray-200 text-center text-gray-800")
+                        )
+                    ),
+                    Tbody(*agenda_rows),
+                    cls="min-w-full bg-white rounded-lg shadow-md"
+                ),
+                cls="p-6 bg-gray-50 rounded-lg shadow-lg", id='main-panel'
             )
+
+        async def buscar_agendas_por_assunto(req):
+            form_data = await req.form()
+            assunto = form_data.get("assunto")
+            
+            if not assunto:
+                return JSONResponse(content={"message": "Assunto é obrigatório."}, status_code=400)
+
+            session = Session()
+            consultor_email = req.state.user["sub"]  # Pega o email do consultor através do token JWT
+            
+            # Buscar consultor logado
+            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+            if not consultor:
+                session.close()
+                return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+            # Filtrar agendas do consultor pelo assunto
+            agendas = session.query(Agenda).filter(Agenda.pedido.has(consultor_id=consultor.id), Agenda.assunto.ilike(f'%{assunto}%')).all()
+
+            if not agendas:
+                session.close()
+                return JSONResponse(content={"message": "Nenhuma agenda encontrada para o assunto informado."}, status_code=404)
+
+            # Retornar os detalhes das agendas encontradas
+            agenda_list = [
+                {
+                    "id": agenda.id,
+                    "assunto": agenda.assunto,
+                    "data": str(agenda.data),
+                    "horario": str(agenda.horario)
+                } for agenda in agendas
+            ]
+            
+            session.close()
+            return JSONResponse(content={"agendas": agenda_list}, status_code=200)
+        
+
+        async def duplicar_agenda(req, agenda_id: int):
+            session = Session()
+            consultor_email = req.state.user["sub"]  # Obtém o email do consultor a partir do token JWT
+
+            try:
+                # Buscar o consultor logado
+                consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+                if not consultor:
+                    return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+                # Buscar a agenda que o consultor deseja duplicar
+                agenda_original = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
+                if not agenda_original:
+                    return JSONResponse(content={"message": "Agenda não encontrada ou não pertence ao consultor."}, status_code=404)
+
+                # Criar uma nova instância da Agenda duplicando os detalhes da original
+                nova_agenda = Agenda(
+                    pedido_id=agenda_original.pedido_id,  # Mantém o pedido original ou pode ser None
+                    assunto=agenda_original.assunto,
+                    data=agenda_original.data,
+                    horario=agenda_original.horario
+                )
+
+                session.add(nova_agenda)
+                session.commit()
+
+                return JSONResponse(content={"message": "Agenda duplicada com sucesso!", "nova_agenda_id": nova_agenda.id}, status_code=201)
+
+            except Exception as e:
+                session.rollback()
+                return JSONResponse(content={"message": "Erro ao duplicar a agenda.", "error": str(e)}, status_code=500)
+
+            finally:
+                session.close()
+
+        
+        async def listar_agendas_concluidas(req):
+            session = Session()
+            consultor_email = req.state.user["sub"]  # Extrai o email do consultor do token JWT
+
+            try:
+                # Buscar o consultor logado
+                consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+                if not consultor:
+                    return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+                # Buscar todas as agendas do consultor que já passaram da data atual
+                agora = datetime.now().date()
+                agendas_concluidas = session.query(Agenda).filter(
+                    Agenda.pedido.has(consultor_id=consultor.id),
+                    Agenda.data < agora
+                ).all()
+
+                if not agendas_concluidas:
+                    return JSONResponse(content={"message": "Nenhuma agenda concluída encontrada."}, status_code=404)
+
+                # Listar as agendas concluídas
+                agenda_list = [
+                    {
+                        "id": agenda.id,
+                        "assunto": agenda.assunto,
+                        "data": str(agenda.data),
+                        "horario": str(agenda.horario)
+                    } for agenda in agendas_concluidas
+                ]
+
+                return JSONResponse(content={"agendas_concluidas": agenda_list}, status_code=200)
+
+            except Exception as e:
+                return JSONResponse(content={"message": "Erro ao buscar agendas concluídas.", "error": str(e)}, status_code=500)
+
+            finally:
+                session.close()
+
+
+        async def eliminar_agenda(req, agenda_id: int):
+            session = Session()
+            consultor_email = req.state.user["sub"]  # Email do consultor extraído do token JWT
+
+            try:
+                # Buscar o consultor pelo email contido no payload do token JWT
+                consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+                
+                if not consultor:
+                    session.close()
+                    return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+                # Buscar a agenda pelo ID e verificar se pertence ao consultor via Pedido
+                agenda = session.query(Agenda).filter(Agenda.id == agenda_id).first()
+
+                if not agenda or agenda.pedido.consultor_id != consultor.id:
+                    return JSONResponse(content={"message": "Agenda não encontrada ou não pertence ao consultor."}, status_code=404)
+                
+                # Eliminar a agenda
+                session.delete(agenda)
+                session.commit()
+
+                return JSONResponse(content={"message": "Agenda eliminada com sucesso!"}, status_code=200)
+            
+            except Exception as e:
+                session.rollback()
+                return JSONResponse(content={"message": "Erro ao eliminar a agenda.", "error": str(e)}, status_code=500)
+            
+            finally:
+                session.close()
+
+        async def form_editar_agenda(req, agenda_id: int):
+            session = Session()
+            consultor_email = req.state.user["sub"]
+
+            # Buscar o consultor logado pelo email contido no token
+            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+
+            if not consultor:
+                session.close()
+                return Titled("Erro", P("Consultor não encontrado."))
+
+            # Buscar a agenda pelo ID e verificar se pertence ao consultor logado
+            agenda = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
+
+            if not agenda:
+                session.close()
+                return Titled("Erro", P("Agenda não encontrada."))
+
+            # Retornar o formulário com os dados atuais da agenda, incluindo o campo "assunto"
+            session.close()
+
+            return Titled("Editar Agenda",
+                Form(method="post", action=f"/atualizar_agenda/{agenda.id}")(
+                    Fieldset(
+                        Label("Assunto: ", Input(name="assunto", type="text", value=str(agenda.assunto), required=True)),
+                        Label("Data: ", Input(name="data", type="date", value=str(agenda.data), required=True)),
+                        Label("Horário: ", Input(name="horario", type="time", value=str(agenda.horario), required=True))
+                    ),
+                    Button("Atualizar Agenda", type="submit")
+                )
+            )
+
+        async def atualizar_agenda(req, agenda_id: int):
+            form_data = await req.form()
+            novo_assunto = form_data.get("assunto")
+            nova_data = form_data.get("data")
+            novo_horario = form_data.get("horario")
+
+            if not novo_assunto or not nova_data or not novo_horario:
+                return JSONResponse(content={"message": "Assunto, data e horário são obrigatórios."}, status_code=400)
+
+            session = Session()
+            consultor_email = req.state.user["sub"]
+
+            try:
+                consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+                
+                if not consultor:
+                    return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+                agenda = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
+                
+                if not agenda:
+                    return JSONResponse(content={"message": "Agenda não encontrada ou não pertence ao consultor."}, status_code=404)
+
+                agenda.assunto = novo_assunto
+                agenda.data = nova_data
+                agenda.horario = novo_horario 
+
+                session.commit()
+
+                # Enviar notificação de atualização
+                mensagem = f"Olá {consultor.nome},\n\nSua agenda foi atualizada:\nNovo Assunto: {novo_assunto}\nNova Data: {nova_data}\nNovo Horário: {novo_horario}\n"
+                enviar_email_notificacao(consultor.email, "Agenda Atualizada", mensagem)
+
+                return JSO NResponse(content={"message": "Agenda atualizada com sucesso!"}, status_code=200)
+            
+            except Exception as e:
+                session.rollback()
+                return JSONResponse(content={"message": "Erro ao atualizar a agenda.", "error": str(e)}, status_code=500)
+            
+            finally:
+                session.close()
+
+        async def template_editar_agenda(req, agenda_id: int):
+            session = Session()
+            consultor_email = req.state.user["sub"]
+
+            # Buscar o consultor logado pelo email contido no token
+            consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+
+            if not consultor:
+                session.close()
+                return Titled("Erro", P("Consultor não encontrado."))
+
+            # Buscar a agenda pelo ID e verificar se pertence ao consultor logado
+            agenda = session.query(Agenda).filter(Agenda.id == agenda_id, Agenda.pedido.has(consultor_id=consultor.id)).first()
+
+            if not agenda:
+                session.close()
+                return Titled("Erro", P("Agenda não encontrada."))
+
+            # Fechar a sessão
+            session.close()
+
+            # Retornar o formulário com os dados atuais da agenda, incluindo o campo "assunto"
+            return Titled("Editar Agenda",
+                Form(
+                    method="post",
+                    action=f"/atualizar_agenda/{agenda.id}",
+                    cls="space-y-6 bg-white p-6 rounded-lg shadow-lg"
+                )(
+                    Fieldset(
+                        Label(
+                            "Assunto:",
+                            Input(
+                                name="assunto",
+                                type="text",
+                                value=str(agenda.assunto),
+                                required=True,
+                                cls="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            ),
+                            cls="block text-gray-700 font-bold mb-2"
+                        ),
+                        Label(
+                            "Data:",
+                            Input(
+                                name="data",
+                                type="date",
+                                value=str(agenda.data),
+                                required=True,
+                                cls="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            ),
+                            cls="block text-gray-700 font-bold mb-2"
+                        ),
+                        Label(
+                            "Horário:",
+                            Input(
+                                name="horario",
+                                type="time",
+                                value=str(agenda.horario),
+                                required=True,
+                                cls="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            ),
+                            cls="block text-gray-700 font-bold mb-2"
+                        ),
+                        cls="space-y-4"
+                    ),
+                    Button(
+                        "Atualizar Agenda",
+                        type="submit",
+                        cls="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg"
+                    )
+                )
+            )
+
+        async def gerar_relatorio_agendas(req):
+            session = Session()
+            consultor_email = req.state.user["sub"]  # Obtém o email do consultor do token JWT
+
+            try:
+                # Buscar o consultor logado
+                consultor = session.query(Consultor).filter(Consultor.email == consultor_email).first()
+                if not consultor:
+                    return JSONResponse(content={"message": "Consultor não encontrado."}, status_code=404)
+
+                # Contar o número de agendas por assunto
+                relatorio_por_assunto = session.query(
+                    Agenda.assunto,
+                    func.count(Agenda.id).label("total")
+                ).filter(Agenda.pedido.has(consultor_id=consultor.id)).group_by(Agenda.assunto).all()
+
+                # Contar o número de agendas por data
+                relatorio_por_data = session.query(
+                    Agenda.data,
+                    func.count(Agenda.id).label("total")
+                ).filter(Agenda.pedido.has(consultor_id=consultor.id)).group_by(Agenda.data).all()
+
+                # Construir o relatório
+                relatorio = {
+                    "por_assunto": [
+                        {"assunto": r.assunto, "total": r.total} for r in relatorio_por_assunto
+                    ],
+                    "por_data": [
+                        {"data": str(r.data), "total": r.total} for r in relatorio_por_data
+                    ]
+                }
+
+                return JSONResponse(content={"relatorio": relatorio}, status_code=200)
+
+            except Exception as e:
+                return JSONResponse(content={"message": "Erro ao gerar relatório de agendas.", "error": str(e)}, status_code=500)
+
+            finally:
+                session.close()
+ 
+
+/home/saide/sympathy/components/dashboard/clientes/template.py
+    from fasthtml.common import Body, Div, Section, A, Button, I, Span, Ul, Li, H3, P, Form, Input, Label, Script
+    from app.viewsClients import buscar_consultores_cliente, listar_historico_consultas_cliente, get_client_info
+    from auth.decorators.authorization import autenticar
+
+    @autenticar('cliente')
+    async def dashboard_cliente(req):
+        # Obtenção de dados
+        consultores_disponiveis = await buscar_consultores_cliente(req)   
+        historico_consultas = await listar_historico_consultas_cliente(req)
+        cliente = await get_client_info(req)
+
+        return Body(
+            Section(
+                # Sidebar para o cliente
+                Div(
+                    Div(
+                        A("Sympathy", href="#", cls="text-2xl font-bold m-4"),
+                        cls="flex justify-between items-center w-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white",
+                    ),
+                    Ul(
+                        Li(
+                            A(
+                                I(cls="fas fa-search mr-2"), 
+                                Span("Buscar Consultores", cls="menu-text"),
+                                hx_get="/buscar_consultores_cliente",
+                                hx_target="#main-content",
+                                hx_swap="innerHTML",
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ),
+                        Li(
+                            A(
+                                I(cls="fas fa-history mr-2"), 
+                                Span("Histórico de Consultas", cls="menu-text"),
+                                hx_get="/listar_historico_consultas_cliente",
+                                hx_target="#main-content",
+                                hx_swap="innerHTML",
+                                cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
+                            )
+                        ),
+                        cls="space-y-4",
+                        id="sidebar-menu"
+                    ),
+                    cls="sidebar fixed top-0 md:relative md:top-auto left-0 w-64 h-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white transition-transform transform -translate-x-full md:translate-x-0",
+                    id="sidebar"
+                ),
+                
+                # Área Principal do Dashboard do Cliente
+                Div(
+                    Div(
+                        P(cliente.nome, cls="text-base font-bold m-4 items-end"),
+                        A("Painel do Cliente", href="#", cls="text-2xl font-bold m-4 items-end"),
+                        Button("☰", cls="text-white m-4 text-3xl md:hidden", onclick="toggleSidebar()", id="menu-toggle"),
+                        cls="flex justify-between items-center w-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white",
+                    ),
+                    
+                    # Formulário de Pesquisa de Consultores
+                    Div(
+                        H3("Buscar Consultores", cls="text-2xl ml-10 font-bold text-purple-700 mb-4"),
+                        Form(
+                            Div(
+                                Label("Nome ou Área de Atuação:", cls="block text-gray-700 font-bold"),
+                                Input(type="text", name="termo", placeholder="Digite o nome ou área de atuação", cls="w-full p-2 mb-4 border rounded"),
+                                Label("Avaliação Mínima:", cls="block text-gray-700 font-bold"),
+                                Input(type="number", name="avaliacao_minima", placeholder="1 a 5", min="1", max="5", step="0.1", cls="w-full p-2 mb-4 border rounded"),
+                                Label("Apenas Disponíveis:", cls="block text-gray-700 font-bold"),
+                                Input(type="checkbox", name="apenas_disponiveis", cls="mb-4"),
+                                Button("Buscar", type="submit", cls="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded", hx_post="/buscar_consultores",  hx_target="#cards-section",  hx_trigger="click", hx_swap="outerHTML"   ),  method="POST", action="/buscar_consultores", cls="p-6 bg-white shadow rounded-lg"
+                        )),
+                        Div(
+                            consultores_disponiveis, cls="mt-4"
+                        ), id='cards-section'
+                    ),
+                    
+                    # Seção de Histórico de Consultas
+                    Div(
+                        Button('▼ Histórico de Consultas', cls='text-2xl ml-10 font-bold text-purple-700 mb-4', id='toggle-button', onclick="toggleCardsSection('Histórico de Consultas')"),
+                        Div(
+                            *[
+                                Div(
+                                    P(f"Data: {consulta['data']}", cls="text-gray-500"),
+                                    P(f"Consultor: {consulta['consultor']}", cls="text-gray-700"),
+                                    P(f"Status: {consulta['status']}", cls="text-gray-700"),
+                                    cls="p-4 bg-white shadow-md rounded-lg mb-4"
+                                ) for consulta in historico_consultas
+                            ],
+                            cls="px-8 py-4 overflow-auto",
+                            style="height: 20rem",
+                            id="agenda-list"
+                        ),
+                    ),
+                    cls="w-full main bg-gray-100",
+                    id="main"
+                ),
+                cls="flex fixed flex-col md:h-full md:flex-row w-full top-0"
+            ),
+            Script(src='static/js/toggle/agendasRecents.js'),
+            Script(src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"),
+            Script(src='static/js/toggle/toggleSidebar.js')
         )
 
  /home/saide/sympathy/app/viewsClients.py
@@ -967,8 +1121,8 @@
         return Titled("Detalhes do Consultor", detalhes_html)
 
 /home/saide/sympathy/components/dashboard/consultores/template.py
-    from fasthtml.common import Body, Div, Section, A, Button, I, Span, Ul, Li, H3, P, Script
-    from app.views import contar_agendas_livres, contar_agendas_ocupadas, contar_clientes_atendidos, contar_pedidos_pendentes, obter_agendas_recentes
+     from fasthtml.common import Body, Div, Section, A, Button, I, Span, Ul, Li, H3, P, Script
+    from app.views import contar_agendas_livres, contar_agendas_ocupadas, contar_clientes_atendidos, contar_pedidos_pendentes, obter_agendas_recentes, consultor_info
     from auth.decorators.authorization import autenticar
 
     @autenticar('consultor')
@@ -979,6 +1133,7 @@
         clientes_atendidos = await contar_clientes_atendidos(req)
         pedidos_consulta = await contar_pedidos_pendentes(req)
         agendas_recentes = await obter_agendas_recentes(req)
+        consultor = await consultor_info(req)
 
         return Body(
             Section(
@@ -992,10 +1147,10 @@
                         Li(
                             A(
                                 I(cls="fas fa-calendar-plus mr-2"), 
-                                Span("Criar Agenda", cls="menu-text"),
-                                hx_get="/form_criar_agenda",
-                                hx_target="#main-content",
-                                hx_swap="innerHTML",
+                                Span("Agendas", cls="menu-text"),
+                                hx_get="/minhas_agendas",
+                                hx_target="#main-panel",
+                                hx_swap="outerHTML",
                                 cls="sidebar-link flex items-center p-2 text-white hover:bg-purple-600"
                             )
                         ),
@@ -1029,6 +1184,7 @@
                 # Área Principal
                 Div(
                     Div(
+                        P(consultor.nome, cls="text-base font-bold m-4 items-end" ),
                         A("Painel de Consultor", href="#", cls="text-2xl font-bold m-4 items-end"),
                         Button("☰", cls="text-white m-4 text-3xl md:hidden", onclick="toggleSidebar()", id="menu-toggle"),
                         cls="flex justify-between items-center w-full bg-gradient-to-l from-purple-900 to-indigo-800 text-white",
@@ -1062,7 +1218,7 @@
                     
                     # Seção de Agendas Recentes com botão de alternância
                     Div(
-                        Button('▼ Agendas Recentes', cls='text-2xl ml-10 font-bold text-purple-700 mb-4', id='toggle-button', onclick="toggleCardsSection()"),
+                        Button('▼ Agendas Recentes', cls='text-2xl ml-10 font-bold text-purple-700 mb-4', id='toggle-button', onclick="toggleCardsSection('Agendas Recentes')"),
                         Div(
                             *[
                                 Div(
@@ -1076,7 +1232,7 @@
                             cls="px-8 py-4 overflow-auto",
                             style="height: 20rem",
                             id="agenda-list"
-                        )
+                        ), id='main-panel'
                     ),
                     cls="w-full main bg-gray-100",
                     id="main"
@@ -1087,6 +1243,7 @@
             Script(src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"),
             Script(src='static/js/toggle/toggleSidebar.js')
         )
+
 
 
  /home/saide/sympathy/components/head/template.py   
@@ -1810,38 +1967,116 @@
 
 
 /home/saide/sympathy/app/viewsClients.py
-    from fasthtml.common import Titled, P, Button, Ul, Li, Div 
-    from db.models import Cliente, Consultor, Pedido, Avaliacao, Agenda, Session  
-    from auth.decorators.goodcookies import goodcookies
-    from sqlalchemy import or_, func
-    from starlette.responses import JSONResponse  
+     from fasthtml.common import Titled, P, Button, Ul, Li, Div, H3, Form, Label, Input
+    from db.models import Cliente, Consultor, Pedido, Avaliacao, Agenda, Session
+    from sqlalchemy import or_, func 
+    from starlette.responses import JSONResponse
 
-    # Função para fazer pedido de consultoria
+    # Dados do cliente
+    async def get_client_info(req):
+        cliente_email = req.state.user["sub"]
+        session = Session()
+        client = session.query(Cliente).filter_by(email=cliente_email).first()
+        return client
+
+
+    # Função para exibir os detalhes do consultor
+    async def detalhes_consultor(req, consultor_id: int):
+        session = Session()
+
+        # Definir cookie com consultor_id para futuras interações
+        response = JSONResponse(content={"message": "Armazenamento realizado com sucesso!", "consultor ID": consultor_id})
+        response.set_cookie(key="consultor_id", value=str(consultor_id), httponly=True)
+
+        # Buscar consultor pelo ID
+        consultor = session.query(Consultor).filter(Consultor.id == consultor_id).first()
+        session.close()
+
+        if not consultor:
+            return Titled("Erro", P("Consultor não encontrado.", cls="text-center text-red-500 text-lg"), status_code=404)
+
+        # Retornar os detalhes do consultor em HTML com TailwindCSS
+        detalhes_html = Div(
+            P(f"Nome: {consultor.nome}", cls="text-lg font-semibold text-gray-800"),
+            P(f"Área de Atuação: {consultor.atuacao}", cls="text-md text-gray-600 mb-4"),
+            Button(
+                "Solicitar Consultoria",
+                hx_post=f"/fazer_pedido_consulta/{consultor.id}",
+                hx_trigger="click",
+                cls="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+            ),
+            cls="p-6 bg-white rounded-lg shadow-md"
+        )
+
+        return Titled("Detalhes do Consultor", detalhes_html, cls="text-center text-2xl font-bold text-purple-700 mb-6")
+
+
+    async def buscar_consultores_cliente(req):
+        form_data = await req.form()  # Obter dados do formulário
+        termo_pesquisa = form_data.get("termo")
+        avaliacao_minima = form_data.get("avaliacao_minima")
+        apenas_disponiveis = form_data.get("apenas_disponiveis") == "true"
+
+        session = Session()
+
+        # Construir a consulta com filtros
+        query = session.query(Consultor).filter(
+            or_(
+                Consultor.nome.ilike(f'%{termo_pesquisa}%'),
+                Consultor.atuacao.ilike(f'%{termo_pesquisa}%')
+            )
+        )
+
+        if avaliacao_minima:
+            query = query.join(Avaliacao).group_by(Consultor.id).having(func.avg(Avaliacao.nota) >= avaliacao_minima)
+
+        if apenas_disponiveis:
+            query = query.outerjoin(Agenda).filter(Agenda.id == None)
+
+        consultores = query.all()
+        session.close()
+
+        if not consultores:
+            return Titled("Nenhum consultor encontrado.", cls="text-center text-gray-500 text-xl font-semibold py-4")
+
+        # Gerar a lista de consultores em HTML com TailwindCSS
+        consultores_html = Ul(*[
+            Li(
+                f"{consultor.nome} - {consultor.atuacao}",
+                hx_get=f"/detalhes_consultor/{consultor.id}",
+                hx_target="#detalhes-consultor",
+                hx_swap="outerHTML",
+                cls="p-4 border-b border-gray-300 hover:bg-gray-100 cursor-pointer text-gray-800 font-medium"
+            ) for consultor in consultores
+        ], id='detalhes-consultor', cls="bg-white shadow-md rounded-lg")
+
+        return Div(
+            consultores_html,
+            id='cards-section',
+            cls="max-w-2xl mx-auto my-8 p-6 bg-gray-50 rounded-lg shadow-lg"
+        )
+    async def listar_historico_consultas_cliente(req):
+        session = Session()
+        cliente_email = req.state.user["sub"]
+        cliente = session.query(Cliente).filter(Cliente.email == cliente_email).first()
+
+        consultas = session.query(Pedido).filter(Pedido.cliente_id == cliente.id).order_by(Pedido.created_at.desc()).all()
+        consulta_list = [
+            {"id": consulta.id, "consultor": consulta.consultor.nome, "status": consulta.status, "data": consulta.created_at.strftime("%d/%m/%Y")}
+            for consulta in consultas
+        ]
+        session.close()
+        return consulta_list
+    
     async def fazer_pedido_consulta(req, consultor_id: int):
-
-        # Debug: Verificar se o consultor_id foi recebido corretamente
-        print("consultor_id recebido do cookie:", consultor_id)
-
-        # Se o consultor_id não estiver presente, retornar um erro
-        if not consultor_id:
-            return Titled("Erro", P("Consultor ID não encontrado nos cookies."))
-
-        # Extraindo o cliente_email do JWT
-        cliente_email = req.state.user["sub"]  # Cliente logado extraído do JWT
-
+        cliente_email = req.state.user["sub"]
         session = Session()
         cliente = session.query(Cliente).filter(Cliente.email == cliente_email).first()
 
-        if not cliente:
-            session.close()
-            return Titled("Erro", P("Cliente não encontrado."))
-
         try:
-            # Criar o pedido de consultoria com o consultor_id e cliente_id
             pedido = Pedido(consultor_id=consultor_id, cliente_id=cliente.id, status="pendente")
             session.add(pedido)
             session.commit()
-
             session.close()
             return Titled("Sucesso", P("Pedido de consultoria enviado com sucesso!"))
         except Exception as e:
@@ -1849,73 +2084,8 @@
             session.close()
             return Titled("Erro", P(f"Ocorreu um erro ao criar o pedido: {str(e)}"))
 
-    # Função para buscar consultores com filtros
-    async def buscar_consultores(req):
-            form_data = await req.form()
-            termo_pesquisa = form_data.get("termo")  # Termo para busca por nome ou área de atuação
-            avaliacao_minima = form_data.get("avaliacao_minima")  # Filtro de avaliação mínima
-            apenas_disponiveis = form_data.get("apenas_disponiveis")  # Filtro de disponibilidade
-
-            session = Session()
-
-            # Query base para buscar consultores
-            query = session.query(Consultor).filter(
-                or_(
-                    Consultor.nome.ilike(f'%{termo_pesquisa}%'),
-                    Consultor.atuacao.ilike(f'%{termo_pesquisa}%')
-                )
-            )
-
-            # Filtro por avaliação mínima
-            if avaliacao_minima:
-                query = query.join(Avaliacao).group_by(Consultor.id).having(func.avg(Avaliacao.nota) >= avaliacao_minima)
-
-            # Filtro de disponibilidade (consultores com agenda disponível)
-            if apenas_disponiveis:
-                query = query.outerjoin(Agenda).filter(Agenda.id == None)  # Consultores sem agenda vinculada
-
-            consultores = query.all()
-            session.close()
-
-            if not consultores:
-                return Titled("Nenhum consultor encontrado.")
-
-            # Gerar a lista de consultores em HTML
-            consultores_html = Ul(*[
-                Li(f"{consultor.nome} - {consultor.atuacao}",
-                    hx_get=f"/detalhes_consultor/{consultor.id}",
-                    hx_target="#detalhes-consultor",
-                    hx_swap="outerHTML"
-                ) for consultor in consultores
-            ])
-
-            return Titled("Lista de Consultores", consultores_html)
-
     
-    # Função para exibir os detalhes do consultor
-    async def detalhes_consultor(req, consultor_id: int):
-        session = Session()
-
-        # Definir cookie com consultor_id para futuras interações
-        response = JSONResponse(content={"message": "Armazenamento realizado com sucesso!", "consultor ID": consultor_id})
-        response.set_cookie(key="consultor_id", value=str(consultor_id), httponly=True)  # Corrigido para garantir o valor correto
-
-        # Buscar consultor pelo ID
-        consultor = session.query(Consultor).filter(Consultor.id == consultor_id).first()
-        session.close()
-
-        if not consultor:
-            return Titled("Erro", P("Consultor não encontrado."), status_code=404)
-
-        # Retornar os detalhes do consultor em HTML
-        detalhes_html = Div(
-            P(f"Nome: {consultor.nome}"),
-            P(f"Área de Atuação: {consultor.atuacao}"),
-            Button("Solicitar Consultoria", hx_post=f"/fazer_pedido_consulta/{consultor.id}", hx_trigger="click" )
-        )
-
-        return Titled("Detalhes do Consultor", detalhes_html)
-
+     
 /home/saide/sympathy/auth/utils.py
     from datetime import datetime, timedelta, timezone
     import bcrypt
