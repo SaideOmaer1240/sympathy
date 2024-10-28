@@ -1,3 +1,7 @@
+FastHTML é uma biblioteca Python voltada para a criação de aplicações web baseadas em HTML e renderizadas no servidor. Ela utiliza o Starlette e Uvicorn para manipulação de rotas e requisições, HTMX para atualizações de interface e `FastTags` do fastcore para componentes HTML. Essa combinação permite construir interfaces ricas e dinâmicas sem depender de bibliotecas de front-end como React ou Vue.
+
+Diferente do FastAPI, FastHTML não é voltado para serviços de API e enfatiza a renderização de HTML no servidor, oferecendo suporte para CSS (como Pico e Surreal) e integração direta com componentes JS nativos【6†source】.
+
 /home/saide/sympathy/.env
      DB_URL=postgresql://postgres:123456@localhost:5432/sympathy_db
      SECRET_KEY = sua_chave_secreta_super_segura
